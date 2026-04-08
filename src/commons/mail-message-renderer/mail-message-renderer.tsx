@@ -26,16 +26,7 @@ export const MailMessageRenderer = memo(function MailMessageRenderer({
 	const isPgpSigned = message.isPgpSigned
 		|| (body?.contentType === 'text/plain' && (body?.content as string | undefined)?.includes('-----BEGIN PGP SIGNED MESSAGE-----'));
 
-	console.error('[mail-renderer] id:', message.id,
-		'isEncrypted:', message.isEncrypted,
-		'isPgpEncrypted:', isPgpEncrypted,
-		'isPgpSigned:', isPgpSigned,
-		'bodyCt:', body?.contentType,
-		'parts:', message.parts?.length,
-	);
-
 	if (isPgpEncrypted || isPgpSigned) {
-		console.error('[mail-renderer] → PgpMessageView');
 		return <PgpMessageView message={{ ...message, isPgpEncrypted: !!isPgpEncrypted, isPgpSigned: !!isPgpSigned }} />;
 	}
 	if (message.isEncrypted) {
