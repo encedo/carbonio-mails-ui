@@ -38,6 +38,7 @@ Thumbs.db
 .env.*
 *.local
 *.tgz
+*.zip
 zextras-carbonio-*.tgz
 /tool-versions
 
