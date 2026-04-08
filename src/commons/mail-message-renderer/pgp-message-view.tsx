@@ -51,6 +51,22 @@ function findInlineSigned(message: MailMessage): string | null {
 	return null;
 }
 
+/** Find RFC 3156 detached signature part number (application/pgp-signature). */
+function findPgpSignaturePartNumber(message: MailMessage): { bodyPart: string; sigPart: string } | null {
+	for (const part of (message.parts ?? []) as any[]) {
+		const ct = part.contentType ?? part.ct ?? '';
+		if (ct.startsWith('multipart/signed') && ct.includes('pgp-signature')) {
+			const subs = part.parts ?? [];
+			const bodyPart = subs.find((s: any) => !(s.contentType ?? s.ct ?? '').includes('pgp-signature'));
+			const sigPart  = subs.find((s: any) =>  (s.contentType ?? s.ct ?? '').includes('pgp-signature'));
+			if (bodyPart && sigPart) {
+				return { bodyPart: bodyPart.name ?? bodyPart.part, sigPart: sigPart.name ?? sigPart.part };
+			}
+		}
+	}
+	return null;
+}
+
 export const PgpMessageView = ({ message }: PgpMessageViewProps): React.JSX.Element => {
 	const [status, setStatus] = useState<PgpStatus>({ state: 'idle' });
 	const decryptedRef = useRef<HTMLDivElement>(null);
@@ -71,8 +87,19 @@ export const PgpMessageView = ({ message }: PgpMessageViewProps): React.JSX.Elem
 				if (!partNum) throw new Error('Cannot find PGP payload part in message');
 				armoredOrSigned = await fetchArmoredMessage(message.id, partNum);
 			} else if (message.isPgpSigned) {
-				armoredOrSigned = findInlineSigned(message);
 				mode = 'sign';
+				// RFC 3156 detached signature — fetch and reassemble as inline cleartext
+				const rfc3156 = findPgpSignaturePartNumber(message);
+				if (rfc3156) {
+					const [body, sig] = await Promise.all([
+						fetchArmoredMessage(message.id, rfc3156.bodyPart),
+						fetchArmoredMessage(message.id, rfc3156.sigPart),
+					]);
+					// Wrap into PGP SIGNED MESSAGE format that __encedoPgpDecrypt understands
+					armoredOrSigned = `-----BEGIN PGP SIGNED MESSAGE-----\nHash: SHA256\n\n${body}\n${sig}`;
+				} else {
+					armoredOrSigned = findInlineSigned(message);
+				}
 			}
 
 			if (!armoredOrSigned) throw new Error('Could not find PGP payload in message parts');
@@ -135,12 +162,12 @@ export const PgpMessageView = ({ message }: PgpMessageViewProps): React.JSX.Elem
 			>
 				{message.isPgpEncrypted && (
 					<Text size="small" style={{ fontWeight: 600 }}>
-						🔒 PGP Encrypted
+						🔒 OpenPGP Encrypted
 					</Text>
 				)}
 				{message.isPgpSigned && !message.isPgpEncrypted && (
 					<Text size="small" style={{ fontWeight: 600 }}>
-						✍ PGP Signed
+						✍ OpenPGP Signed
 					</Text>
 				)}
 				{sigBadge}

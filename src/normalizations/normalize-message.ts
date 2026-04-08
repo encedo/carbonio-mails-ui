@@ -429,7 +429,12 @@ const createBaseNormalizedMessage = (
 		? !!find(m.mp, (part) => part.ct?.startsWith('multipart/encrypted') && part.ct?.includes('pgp-encrypted'))
 		: undefined,
 	isPgpSigned: m.mp
-		? !!find(m.mp, (part) => part.ct === 'text/plain' && part.body && (part.content as string | undefined)?.includes('-----BEGIN PGP SIGNED MESSAGE-----'))
+		? !!find(m.mp, (part) =>
+			// RFC 3156 detached signature (multipart/signed; protocol="application/pgp-signature")
+			(part.ct?.startsWith('multipart/signed') && part.ct?.includes('pgp-signature')) ||
+			// Inline cleartext (legacy PGP SIGNED MESSAGE block in text/plain)
+			(part.ct === 'text/plain' && part.body && (part.content as string | undefined)?.includes('-----BEGIN PGP SIGNED MESSAGE-----'))
+		  )
 		: undefined
 });
 
