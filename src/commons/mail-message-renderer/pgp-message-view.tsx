@@ -18,15 +18,16 @@ type PgpStatus =
 type PgpMessageViewProps = { message: MailMessage };
 
 /**
- * Find the part number of the application/octet-stream PGP payload.
+ * Find the part number of the PGP payload (second part of multipart/encrypted).
  * Returns the SOAP part number (e.g. "2") needed for REST fetch.
+ * Accepts application/octet-stream (RFC 3156 strict) and text/plain (Proton/Thunderbird).
  */
 function findPgpPartNumber(message: MailMessage): string | null {
 	for (const part of (message.parts ?? []) as any[]) {
 		if (part.contentType?.startsWith('multipart/encrypted') || part.ct?.startsWith('multipart/encrypted')) {
 			for (const sub of part.parts ?? []) {
 				const ct = sub.contentType ?? sub.ct ?? '';
-			if ((ct === 'application/octet-stream' || ct === 'text/plain') && (sub.name || sub.part)) {
+				if ((ct === 'application/octet-stream' || ct === 'text/plain') && (sub.name || sub.part)) {
 					return (sub.name ?? sub.part) as string;
 				}
 			}
@@ -54,21 +55,11 @@ export const PgpMessageView = ({ message }: PgpMessageViewProps): React.JSX.Elem
 	const [status, setStatus] = useState<PgpStatus>({ state: 'idle' });
 	const decryptedRef = useRef<HTMLDivElement>(null);
 
-	console.error('[pgp-view] render — id:', message.id,
-		'isPgpEncrypted:', message.isPgpEncrypted,
-		'isPgpSigned:', message.isPgpSigned,
-		'parts count:', message.parts?.length,
-		'body ct:', message.body?.contentType,
-		'body len:', message.body?.content?.length,
-	);
-
 	const decrypt = useCallback(async () => {
-		console.error('[pgp-view] decrypt called, mode:', message.isPgpEncrypted ? 'encrypt' : 'sign');
 		setStatus({ state: 'decrypting' });
 		try {
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const pgpDecrypt = (window as any).__encedoPgpDecrypt;
-			console.error('[pgp-view] __encedoPgpDecrypt:', typeof pgpDecrypt);
 			if (!pgpDecrypt) throw new Error('carbonio-pgp-ui not loaded');
 
 			let armoredOrSigned: string | null = null;
@@ -77,29 +68,33 @@ export const PgpMessageView = ({ message }: PgpMessageViewProps): React.JSX.Elem
 			if (message.isPgpEncrypted) {
 				mode = 'encrypt';
 				const partNum = findPgpPartNumber(message);
-				console.error('[pgp-view] pgp part number:', partNum);
-				console.error('[pgp-view] parts:', JSON.stringify((message.parts as any[])?.map((p: any) => ({ ct: p.contentType ?? p.ct, part: p.part, subparts: p.parts?.map((s: any) => ({ ct: s.contentType ?? s.ct, part: s.part, len: s.content?.length })) }))));
-				if (!partNum) throw new Error('Cannot find octet-stream part number in message');
+				if (!partNum) throw new Error('Cannot find PGP payload part in message');
 				armoredOrSigned = await fetchArmoredMessage(message.id, partNum);
-				console.error('[pgp-view] fetched armored len:', armoredOrSigned?.length);
 			} else if (message.isPgpSigned) {
 				armoredOrSigned = findInlineSigned(message);
 				mode = 'sign';
-				console.error('[pgp-view] findInlineSigned result len:', armoredOrSigned?.length ?? 'null');
 			}
 
 			if (!armoredOrSigned) throw new Error('Could not find PGP payload in message parts');
 
 			const senderEmail = message.participants?.find(p => p.type === 'f')?.address;
-			console.error('[pgp-view] calling __encedoPgpDecrypt mode:', mode, 'sender:', senderEmail);
+			const recipientEmail = message.participants?.find(p => p.type === 't')?.address;
 
 			const result: { html: string; signerEmail: string | null; sigValid: boolean | null } =
-				await pgpDecrypt({ armored: armoredOrSigned, mode, senderEmail });
+				await pgpDecrypt({ armored: armoredOrSigned, mode, senderEmail, recipientEmail });
 
-			console.error('[pgp-view] decrypt ok, sigValid:', result.sigValid, 'htmlLen:', result.html.length);
 			setStatus({ state: 'done', ...result });
 		} catch (e) {
-			setStatus({ state: 'error', message: e instanceof Error ? e.message : String(e) });
+			const msg = e instanceof Error ? e.message : String(e);
+			// If HSM is locked, open unlock modal and retry automatically after unlock
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const requestUnlock = (window as any).__encedoPgpRequestUnlock;
+			if (msg.includes('HSM not connected') && requestUnlock) {
+				setStatus({ state: 'idle' });
+				requestUnlock(() => { decrypt(); });
+			} else {
+				setStatus({ state: 'error', message: msg });
+			}
 		}
 	}, [message]);
 
