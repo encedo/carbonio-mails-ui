@@ -408,7 +408,7 @@ const createSoapMessageRequestFromEditor = (
 		rt: editor.replyType,
 		...(editor.originalId ? { origid: getCompleteMessageId(editor.originalId) } : {}),
 		e: soapParticipants,
-		mp: getMP(editor),
+		mp: editor.pgpOverrideMp ?? getMP(editor),
 		...(editor.isUrgent ? { f: '!' } : {})
 	};
 

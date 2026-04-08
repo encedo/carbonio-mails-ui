@@ -11,10 +11,13 @@ import { ErrorSoapBodyResponse, t } from '@zextras/carbonio-shell-ui';
 
 import { checkSubjectAndAttachment } from '../check-subject-attachment';
 import { getErrorSnackbarProps } from './use-error-handler';
+import { buildEncryptedMp, buildSignedMp } from './pgp-send';
 import { createEditBoard } from '../edit-view-board';
 import { EDIT_VIEW_CLOSING_REASONS, EditViewActions, TIMEOUTS } from 'constants/index';
 import {
+	addEditor,
 	deleteEditor,
+	getEditor,
 	useEditorAttachments,
 	useEditorAutoSendTime,
 	useEditorDraftSave,
@@ -105,6 +108,56 @@ export const useSendHandlers = (
 
 	const onSendClick = useCallback((): void => {
 		const onConfirmCallback = async (): Promise<void> => {
+			// ── PGP intercept ────────────────────────────────────────────────
+			const editor = getEditor({ id: editorId });
+			if (editor && (editor.isPgpSign || editor.isPgpEncrypt)) {
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				const hsm = (window as any).__encedoPgpGetHsm?.();
+				if (!hsm?.unlocked) {
+					createSnackbar({
+						key: `pgp-${editorId}`,
+						replace: true,
+						severity: 'error',
+						label: 'HSM is locked — unlock PGP before sending',
+						autoHideTimeout: TIMEOUTS.SNACKBAR_DEFAULT_TIMEOUT,
+						hideButton: true
+					});
+					return;
+				}
+
+				const { getIdentityDescriptor } = await import('helpers/identities');
+				const identity = getIdentityDescriptor(editor.identityId);
+				const senderEmail = identity?.fromAddress ?? '';
+
+				const plainText = editor.textProvider?.getCurrentText()?.plainText ?? editor.text?.plainText ?? '';
+				const richText  = editor.textProvider?.getCurrentText()?.richText  ?? editor.text?.richText  ?? '';
+				const recipientEmails = [
+					...editor.recipients.to,
+					...editor.recipients.cc,
+					...editor.recipients.bcc
+				].map((r) => r.address).filter(Boolean);
+
+				const pgpParams = { senderEmail, recipientEmails, plainText, richText };
+
+				try {
+					const overrideMp = editor.isPgpEncrypt
+						? await buildEncryptedMp(pgpParams)
+						: await buildSignedMp(pgpParams);
+					addEditor({ id: editorId, editor: { ...editor, pgpOverrideMp: overrideMp } });
+				} catch (e) {
+					createSnackbar({
+						key: `pgp-${editorId}`,
+						replace: true,
+						severity: 'error',
+						label: `PGP failed: ${e instanceof Error ? e.message : String(e)}`,
+						autoHideTimeout: TIMEOUTS.SNACKBAR_DEFAULT_TIMEOUT,
+						hideButton: true
+					});
+					return;
+				}
+			}
+			// ── end PGP intercept ─────────────────────────────────────────────
+
 			sendMessage({
 				onCountdownTick: onSendCountdownTick,
 				onComplete: onSendComplete,
@@ -123,6 +176,7 @@ export const useSendHandlers = (
 		close,
 		closeModal,
 		createModal,
+		createSnackbar,
 		editorId,
 		onSendComplete,
 		onSendCountdownTick,

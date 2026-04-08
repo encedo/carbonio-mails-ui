@@ -495,3 +495,43 @@ export const useEditorIsSmimeEncrypt = (
 		[id, debouncedSaveDraft, setter, value, setDirty]
 	);
 };
+
+export const useEditorIsPgpSign = (
+	id: MailsEditorV2['id']
+): {
+	isPgpSign: MailsEditorV2['isPgpSign'];
+	setIsPgpSign: (isPgpSign: MailsEditorV2['isPgpSign']) => void;
+} => {
+	const value = useEditorsStore((state) => state.editors[id].isPgpSign);
+	const setter = useEditorsStore.getState().setIsPgpSign;
+
+	return useMemo(
+		() => ({
+			isPgpSign: value,
+			setIsPgpSign: (val: MailsEditorV2['isPgpSign']): void => {
+				setter(id, val);
+			}
+		}),
+		[id, setter, value]
+	);
+};
+
+export const useEditorIsPgpEncrypt = (
+	id: MailsEditorV2['id']
+): {
+	isPgpEncrypt: MailsEditorV2['isPgpEncrypt'];
+	setIsPgpEncrypt: (isPgpEncrypt: MailsEditorV2['isPgpEncrypt']) => void;
+} => {
+	const value = useEditorsStore((state) => state.editors[id].isPgpEncrypt);
+	const setter = useEditorsStore.getState().setIsPgpEncrypt;
+
+	return useMemo(
+		() => ({
+			isPgpEncrypt: value,
+			setIsPgpEncrypt: (val: MailsEditorV2['isPgpEncrypt']): void => {
+				setter(id, val);
+			}
+		}),
+		[id, setter, value]
+	);
+};

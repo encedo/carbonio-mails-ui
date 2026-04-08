@@ -181,6 +181,12 @@ export type MailsEditorV2 = {
 	isSmimeSign?: boolean;
 	// flag for the S/MIME Encrypt request
 	isSmimeEncrypt?: boolean;
+	// flag for the PGP Sign request (Encedo HSM)
+	isPgpSign?: boolean;
+	// flag for the PGP Encrypt request (Encedo HSM)
+	isPgpEncrypt?: boolean;
+	// when set, overrides the mp[] built by getMP() in the outgoing SOAP request (used for PGP)
+	pgpOverrideMp?: import('../soap/save-draft').SoapEmailMessagePartObj[];
 	// optional external text provider to get/set the editor text
 	textProvider?: EditorTextProvider;
 };

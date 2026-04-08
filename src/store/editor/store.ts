@@ -443,6 +443,28 @@ export const useEditorsStore = create<EditorsStateTypeV2>()(
 					'EDITOR/SET_IS_SMIME_ENCRYPT'
 				);
 			},
+			setIsPgpSign: (id: MailsEditorV2['id'], value: MailsEditorV2['isPgpSign']): void => {
+				set(
+					produce((state: EditorsStateTypeV2) => {
+						if (state?.editors?.[id]) {
+							state.editors[id].isPgpSign = value;
+						}
+					}),
+					false,
+					'EDITOR/SET_IS_PGP_SIGN'
+				);
+			},
+			setIsPgpEncrypt: (id: MailsEditorV2['id'], value: MailsEditorV2['isPgpEncrypt']): void => {
+				set(
+					produce((state: EditorsStateTypeV2) => {
+						if (state?.editors?.[id]) {
+							state.editors[id].isPgpEncrypt = value;
+						}
+					}),
+					false,
+					'EDITOR/SET_IS_PGP_ENCRYPT'
+				);
+			},
 			setTextProvider: (id: MailsEditorV2['id'], provider: EditorTextProvider): void => {
 				set(
 					produce((state: EditorsStateTypeV2) => {

@@ -79,6 +79,8 @@ export type EditorsStateTypeV2 = {
 		id: MailsEditorV2['id'],
 		isSmimeEncrypt: MailsEditorV2['isSmimeEncrypt']
 	) => void;
+	setIsPgpSign: (id: MailsEditorV2['id'], isPgpSign: MailsEditorV2['isPgpSign']) => void;
+	setIsPgpEncrypt: (id: MailsEditorV2['id'], isPgpEncrypt: MailsEditorV2['isPgpEncrypt']) => void;
 	setTextProvider: (id: MailsEditorV2['id'], textProvider: EditorTextProvider) => void;
 	getEditorByDraftId: (draftId: string) => MailsEditorV2 | null;
 	getEditorsByDraftsId: (draftsId: Array<string>) => Array<MailsEditorV2 & { did: string }>;

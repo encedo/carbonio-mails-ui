@@ -403,6 +403,8 @@ const createBaseNormalizedMessage = (
 	body: IncompleteMessage['body'] | undefined;
 	autoSendTime: IncompleteMessage['autoSendTime'];
 	isEncrypted: IncompleteMessage['isEncrypted'];
+	isPgpEncrypted: IncompleteMessage['isPgpEncrypted'];
+	isPgpSigned: IncompleteMessage['isPgpSigned'];
 } => ({
 	conversation: m.cid,
 	date: m.d,
@@ -422,7 +424,13 @@ const createBaseNormalizedMessage = (
 	shr: m.shr,
 	body: m.mp ? generateBody(m.mp || [], m.id) : undefined,
 	autoSendTime: m.autoSendTime,
-	isEncrypted: m.mp ? !!find(m.mp, (part) => part.ct === 'application/pkcs7-mime') : undefined
+	isEncrypted: m.mp ? !!find(m.mp, (part) => part.ct === 'application/pkcs7-mime') : undefined,
+	isPgpEncrypted: m.mp
+		? !!find(m.mp, (part) => part.ct?.startsWith('multipart/encrypted') && part.ct?.includes('pgp-encrypted'))
+		: undefined,
+	isPgpSigned: m.mp
+		? !!find(m.mp, (part) => part.ct === 'text/plain' && part.body && (part.content as string | undefined)?.includes('-----BEGIN PGP SIGNED MESSAGE-----'))
+		: undefined
 });
 
 type RemoveNil<T> = {

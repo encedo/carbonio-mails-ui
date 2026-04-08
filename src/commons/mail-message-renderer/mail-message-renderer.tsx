@@ -8,6 +8,7 @@ import React, { memo } from 'react';
 import { HtmlMessageRenderer } from './html-message-renderer/html-message-renderer';
 import { TextMessageRenderer } from './text-message-renderer/text-message-renderer';
 import { EmptyBody, EncryptedMsg } from 'commons/mail-message-renderer/empty-body';
+import { PgpMessageView } from './pgp-message-view';
 import { MailMessage } from 'types/messages';
 
 type MailMessageRendererProps = {
@@ -18,6 +19,25 @@ export const MailMessageRenderer = memo(function MailMessageRenderer({
 	message
 }: MailMessageRendererProps): JSX.Element {
 	const { body, fragment } = message;
+
+	const isPgpEncrypted = message.isPgpEncrypted
+		|| body?.contentType === 'application/pgp-encrypted'
+		|| body?.contentType?.startsWith('multipart/encrypted');
+	const isPgpSigned = message.isPgpSigned
+		|| (body?.contentType === 'text/plain' && (body?.content as string | undefined)?.includes('-----BEGIN PGP SIGNED MESSAGE-----'));
+
+	console.error('[mail-renderer] id:', message.id,
+		'isEncrypted:', message.isEncrypted,
+		'isPgpEncrypted:', isPgpEncrypted,
+		'isPgpSigned:', isPgpSigned,
+		'bodyCt:', body?.contentType,
+		'parts:', message.parts?.length,
+	);
+
+	if (isPgpEncrypted || isPgpSigned) {
+		console.error('[mail-renderer] → PgpMessageView');
+		return <PgpMessageView message={{ ...message, isPgpEncrypted: !!isPgpEncrypted, isPgpSigned: !!isPgpSigned }} />;
+	}
 	if (message.isEncrypted) {
 		return <EncryptedMsg />;
 	}

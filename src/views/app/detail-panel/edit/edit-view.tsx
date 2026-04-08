@@ -32,6 +32,7 @@ import { ChangeSignaturesDropdown } from './parts/change-signatures-dropdown';
 import { EditViewFooter } from './parts/edit-view-footer';
 import { EditViewIdentitySelector } from './parts/edit-view-identity-selector';
 import { EditViewSendButtons } from './parts/edit-view-send-buttons';
+import { PgpButtons } from './parts/pgp-buttons';
 import { OptionsDropdown } from './parts/options-dropdown';
 import { RecipientsRows } from './parts/recipients-rows';
 import { SubjectRow } from './parts/subject-row';
@@ -396,7 +397,8 @@ export const EditView = React.forwardRef<EditViewHandle, EditViewProp>(function 
 								}
 								isSmimeEnabled={isSmimeEnabled}
 							/>
-							<Tooltip
+							<PgpButtons editorId={editorId} />
+						<Tooltip
 								label={saveDraftAllowedStatus?.reason}
 								disabled={saveDraftAllowedStatus?.allowed}
 							>
