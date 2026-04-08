@@ -1,0 +1,40 @@
+name: Build
+
+on:
+  push:
+    branches: [devel]
+  pull_request:
+    branches: [devel]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout carbonio-mails-ui
+        uses: actions/checkout@v4
+        with:
+          path: carbonio-mails-ui
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: carbonio-mails-ui/package-lock.json
+
+      - name: Install dependencies
+        working-directory: carbonio-mails-ui
+        run: npm ci
+
+      - name: Build
+        working-directory: carbonio-mails-ui
+        run: bash build-zip.sh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: carbonio-mails-ui-${{ github.sha }}
+          path: carbonio-mails-ui/carbonio-mails-ui.zip
+          retention-days: 30
