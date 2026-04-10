@@ -8,6 +8,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Container, Row, Text } from '@zextras/carbonio-design-system';
 
 import { MailMessage } from 'types/messages';
+import { pgpCall } from '../pgp-bridge';
 
 type PgpStatus =
 	| { state: 'idle' }
@@ -74,10 +75,6 @@ export const PgpMessageView = ({ message }: PgpMessageViewProps): React.JSX.Elem
 	const decrypt = useCallback(async () => {
 		setStatus({ state: 'decrypting' });
 		try {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const pgpDecrypt = (window as any).__encedoPgpDecrypt;
-			if (!pgpDecrypt) throw new Error('carbonio-pgp-ui not loaded');
-
 			let armoredOrSigned: string | null = null;
 			let mode: 'encrypt' | 'sign' = 'encrypt';
 
@@ -108,7 +105,7 @@ export const PgpMessageView = ({ message }: PgpMessageViewProps): React.JSX.Elem
 			const recipientEmail = message.participants?.find(p => p.type === 't')?.address;
 
 			const result: { html: string; signerEmail: string | null; sigValid: boolean | null } =
-				await pgpDecrypt({ armored: armoredOrSigned, mode, senderEmail, recipientEmail });
+				await pgpCall('__encedoPgpDecrypt', { armored: armoredOrSigned, mode, senderEmail, recipientEmail });
 
 			setStatus({ state: 'done', ...result });
 		} catch (e) {

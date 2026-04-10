@@ -13,6 +13,7 @@
  */
 
 import { SoapEmailMessagePartObj } from 'types/soap/save-draft';
+import { pgpCall } from '../../../../../commons/pgp-bridge';
 
 export type PgpSendParams = {
 	senderEmail: string;
@@ -33,11 +34,7 @@ function randomBoundary(): string {
  * HTML part is left as-is.
  */
 export async function buildSignedMp(params: PgpSendParams): Promise<SoapEmailMessagePartObj[]> {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	const signOnly = (window as any).__encedoPgpSignOnly;
-	if (!signOnly) throw new Error('carbonio-pgp-ui not loaded — __encedoPgpSignOnly unavailable');
-
-	const signedPlain: string = await signOnly(params);
+	const signedPlain: string = await pgpCall('__encedoPgpSignOnly', params);
 
 	return [
 		{
@@ -66,11 +63,7 @@ export async function buildSignedMp(params: PgpSendParams): Promise<SoapEmailMes
  *     application/octet-stream   →  -----BEGIN PGP MESSAGE-----
  */
 export async function buildEncryptedMp(params: PgpSendParams): Promise<SoapEmailMessagePartObj[]> {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	const encryptAndSign = (window as any).__encedoPgpEncryptAndSign;
-	if (!encryptAndSign) throw new Error('carbonio-pgp-ui not loaded — __encedoPgpEncryptAndSign unavailable');
-
-	const armoredMessage: string = await encryptAndSign(params);
+	const armoredMessage: string = await pgpCall('__encedoPgpEncryptAndSign', params);
 
 	const boundary = randomBoundary();
 	return [
