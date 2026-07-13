@@ -18,20 +18,25 @@ jobs:
         with:
           path: carbonio-mails-ui
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: carbonio-mails-ui/package.json
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: carbonio-mails-ui/package-lock.json
+          cache: 'pnpm'
+          cache-dependency-path: carbonio-mails-ui/pnpm-lock.yaml
 
       - name: Install dependencies
         working-directory: carbonio-mails-ui
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build
         working-directory: carbonio-mails-ui
-        run: npm run build
+        run: pnpm run build
 
       - name: Build .deb
         id: deb
