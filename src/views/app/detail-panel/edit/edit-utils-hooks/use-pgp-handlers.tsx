@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { getPgpPrefs } from 'commons/pgp-prefs';
 import { useEditorIsPgpEncrypt, useEditorIsPgpSign, useEditorRecipients } from 'store/editor';
 
 // Access Encedo HSM singleton state — reads _singleton directly to avoid
@@ -101,7 +102,20 @@ export const usePgpHandlers = (editorId: string): UsePgpHandlersReturn => {
 		};
 	}, [recipients]);
 
-	// If encrypt becomes unavailable (recipient removed / key gone), turn off encrypt flag
+	// "Always sign" preference — applied once, as soon as the HSM is unlocked
+	const signPrefAppliedRef = useRef(false);
+	useEffect(() => {
+		if (signPrefAppliedRef.current || !isHsmUnlocked) return;
+		signPrefAppliedRef.current = true;
+		if (getPgpPrefs().alwaysSign && !isPgpSign) {
+			setIsPgpSign(true);
+		}
+	}, [isHsmUnlocked, isPgpSign, setIsPgpSign]);
+
+	// Turn encrypt off when it becomes unavailable (recipient removed / key gone), and turn it
+	// on when the "always encrypt" preference is set and every recipient has a key. An explicit
+	// toggle by the user wins over the preference for the rest of the editor's life.
+	const encryptToggledByUserRef = useRef(false);
 	useEffect(() => {
 		const allRecipients = [...recipients.to, ...recipients.cc, ...recipients.bcc].map(
 			(r) => r.address
@@ -111,12 +125,22 @@ export const usePgpHandlers = (editorId: string): UsePgpHandlersReturn => {
 			return;
 		}
 		const allAvailable = allRecipients.every((a) => encryptStatuses[a] === 'available');
-		if (!allAvailable && isPgpEncrypt) {
-			setIsPgpEncrypt(false);
+		if (!allAvailable) {
+			if (isPgpEncrypt) setIsPgpEncrypt(false);
+			return;
 		}
-	}, [encryptStatuses, isPgpEncrypt, recipients, setIsPgpEncrypt]);
+		if (
+			!isPgpEncrypt &&
+			!encryptToggledByUserRef.current &&
+			isHsmUnlocked &&
+			getPgpPrefs().alwaysEncrypt
+		) {
+			setIsPgpEncrypt(true);
+		}
+	}, [encryptStatuses, isHsmUnlocked, isPgpEncrypt, recipients, setIsPgpEncrypt]);
 
 	const handlePgpSignToggle = useCallback(() => {
+		signPrefAppliedRef.current = true;
 		setIsPgpSign(!isPgpSign);
 	}, [isPgpSign, setIsPgpSign]);
 
@@ -126,6 +150,7 @@ export const usePgpHandlers = (editorId: string): UsePgpHandlersReturn => {
 		);
 		const allAvailable = allRecipients.every((a) => encryptStatuses[a] === 'available');
 		if (!allAvailable) return;
+		encryptToggledByUserRef.current = true;
 		setIsPgpEncrypt(!isPgpEncrypt);
 	}, [isPgpEncrypt, setIsPgpEncrypt, recipients, encryptStatuses]);
 

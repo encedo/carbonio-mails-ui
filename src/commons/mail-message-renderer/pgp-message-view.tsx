@@ -9,6 +9,7 @@ import { Button, Container, Row, Text } from '@zextras/carbonio-design-system';
 
 import { MailMessage } from 'types/messages';
 import { pgpCall } from '../pgp-bridge';
+import { getPgpPrefs } from '../pgp-prefs';
 
 type PgpStatus =
 	| { state: 'idle' }
@@ -122,12 +123,27 @@ export const PgpMessageView = ({ message }: PgpMessageViewProps): React.JSX.Elem
 		}
 	}, [message]);
 
-	// Auto-decrypt signed messages (no HSM needed for verify-only)
+	// Drop the previous result if the panel is reused for another message
+	const shownIdRef = useRef(message.id);
 	useEffect(() => {
-		if (message.isPgpSigned && status.state === 'idle') {
-			decrypt();
+		if (shownIdRef.current !== message.id) {
+			shownIdRef.current = message.id;
+			setStatus({ state: 'idle' });
 		}
-	}, [message.isPgpSigned, status.state, decrypt]);
+	}, [message.id]);
+
+	// Auto-decrypt signed messages (no HSM needed for verify-only), and encrypted ones when the
+	// user enabled the "auto decrypt" preference. Runs at most once per message: a locked HSM
+	// resets the status back to 'idle' while the unlock modal is open, and re-running here would
+	// re-open it in a loop.
+	const autoDecryptTriedRef = useRef<string | null>(null);
+	useEffect(() => {
+		if (autoDecryptTriedRef.current === message.id || status.state !== 'idle') return;
+		const auto = message.isPgpSigned || (message.isPgpEncrypted && getPgpPrefs().autoDecrypt);
+		if (!auto) return;
+		autoDecryptTriedRef.current = message.id;
+		decrypt();
+	}, [message.id, message.isPgpSigned, message.isPgpEncrypted, status.state, decrypt]);
 
 	// Render decrypted HTML into shadow DOM wrapper
 	useEffect(() => {
