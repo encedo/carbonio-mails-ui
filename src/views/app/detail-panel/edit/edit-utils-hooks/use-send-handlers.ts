@@ -36,7 +36,7 @@ export const useSendHandlers = (
 	const { setAutoSendTime } = useEditorAutoSendTime(editorId);
 	const { saveDraft } = useEditorDraftSave(editorId);
 	const { send: sendMessage } = useEditorSend(editorId);
-	const { savedStandardAttachments } = useEditorAttachments(editorId);
+	const { savedStandardAttachments, unsavedStandardAttachments } = useEditorAttachments(editorId);
 	const createSnackbar = useSnackbar();
 	const { createModal, closeModal } = useModal();
 
@@ -123,6 +123,36 @@ export const useSendHandlers = (
 						hideButton: true
 					});
 					return;
+				}
+
+				// Encryption guards — block leaks until proper support lands (PGP roadmap B).
+				if (editor.isPgpEncrypt) {
+					// #0a: standard attachments are NOT encrypted yet — they would be sent in
+					// clear alongside the encrypted body. Block rather than leak them.
+					if (savedStandardAttachments.length > 0 || unsavedStandardAttachments.length > 0) {
+						createSnackbar({
+							key: `pgp-${editorId}`,
+							replace: true,
+							severity: 'error',
+							label: 'Attachments are not encrypted yet — remove them, or send without encryption',
+							autoHideTimeout: TIMEOUTS.SNACKBAR_DEFAULT_TIMEOUT,
+							hideButton: true
+						});
+						return;
+					}
+					// #0c: a single encrypted copy carries every recipient key ID in the PKESK,
+					// so a BCC recipient would be revealed to the To/CC recipients. Block BCC.
+					if (editor.recipients.bcc.length > 0) {
+						createSnackbar({
+							key: `pgp-${editorId}`,
+							replace: true,
+							severity: 'error',
+							label: 'BCC is not supported with encryption yet — it would reveal the hidden recipients. Remove BCC.',
+							autoHideTimeout: TIMEOUTS.SNACKBAR_DEFAULT_TIMEOUT,
+							hideButton: true
+						});
+						return;
+					}
 				}
 
 				const { getIdentityDescriptor } = await import('helpers/identities');

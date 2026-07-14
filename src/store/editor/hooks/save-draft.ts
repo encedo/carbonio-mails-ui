@@ -67,6 +67,14 @@ export const useSaveDraftFromEditor = (
 				return;
 			}
 
+			// #0b: never persist a plaintext draft of a PGP compose. The editor content is
+			// plaintext (encryption happens only at send), so an autosave/close-save would
+			// leak it to the server. No draft is kept for PGP editors until encrypted drafts
+			// are supported (PGP roadmap B). Send is unaffected — it uses sendMsgFromEditor.
+			if (editor.isPgpSign || editor.isPgpEncrypt) {
+				return;
+			}
+
 			if (!editor.draftSaveAllowedStatus?.allowed) {
 				return;
 			}
