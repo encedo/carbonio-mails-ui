@@ -123,6 +123,23 @@ export const PgpMessageView = ({ message }: PgpMessageViewProps): React.JSX.Elem
 		}
 	}, [message]);
 
+	// Connect/unlock the HSM: open the in-place unlock modal if the PGP module is
+	// mounted, otherwise switch to the PGP section where the user can connect.
+	const connectHsm = useCallback(() => {
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const requestUnlock = (window as any).__encedoPgpRequestUnlock;
+		if (requestUnlock) {
+			setStatus({ state: 'idle' });
+			requestUnlock(() => {
+				decrypt();
+			});
+			return;
+		}
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const openSettings = (window as any).__encedoPgpOpenSettings;
+		if (openSettings) openSettings();
+	}, [decrypt]);
+
 	// Drop the previous result if the panel is reused for another message
 	const shownIdRef = useRef(message.id);
 	useEffect(() => {
@@ -185,7 +202,15 @@ export const PgpMessageView = ({ message }: PgpMessageViewProps): React.JSX.Elem
 				)}
 				{sigBadge}
 				{status.state === 'decrypting' && <Text size="small">Decrypting…</Text>}
-				{status.state === 'error' && (
+				{status.state === 'error' && /HSM not connected/i.test(status.message) && (
+					<>
+						<Text color="error" size="small">
+							HSM not connected
+						</Text>
+						<Button size="small" label="Connect HSM" onClick={connectHsm} />
+					</>
+				)}
+				{status.state === 'error' && !/HSM not connected/i.test(status.message) && (
 					<Text color="error" size="small">
 						{status.message}
 					</Text>
