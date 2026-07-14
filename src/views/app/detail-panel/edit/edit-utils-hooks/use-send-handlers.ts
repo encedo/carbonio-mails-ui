@@ -13,6 +13,9 @@ import { checkSubjectAndAttachment } from '../check-subject-attachment';
 import { getErrorSnackbarProps } from './use-error-handler';
 import { buildEncryptedMp, buildSignedMp } from './pgp-send';
 import { createEditBoard } from '../edit-view-board';
+import { bytesToBase64, getPgpAttachmentFile } from 'commons/pgp-attachment-cache';
+import { composeAttachmentDownloadUrl } from 'helpers/attachments';
+import { SavedAttachment, UnsavedAttachment } from 'types/attachments';
 import { EDIT_VIEW_CLOSING_REASONS, EditViewActions, TIMEOUTS } from 'constants/index';
 import {
 	addEditor,
@@ -25,6 +28,37 @@ import {
 } from 'store/editor';
 import { EditViewClosingReasons } from 'types/editor';
 import { SaveDraftResponse } from 'types/soap/save-draft';
+
+type PgpAttachmentData = { filename: string; contentType: string; base64: string };
+
+/**
+ * Read the bytes of every standard attachment so they can be encrypted INSIDE the
+ * PGP message. Saved attachments are fetched over REST; unsaved ones are read from
+ * the File kept client-side at attach time. Throws if any attachment's bytes are
+ * unavailable — the caller must then abort rather than send it in clear.
+ */
+async function gatherPgpAttachments(
+	saved: Array<SavedAttachment>,
+	unsaved: Array<UnsavedAttachment>
+): Promise<Array<PgpAttachmentData>> {
+	const out: Array<PgpAttachmentData> = [];
+	for (const a of saved) {
+		// eslint-disable-next-line no-await-in-loop
+		const res = await fetch(composeAttachmentDownloadUrl(a));
+		if (!res.ok) throw new Error(`could not read attachment "${a.filename}" (HTTP ${res.status})`);
+		// eslint-disable-next-line no-await-in-loop
+		const bytes = new Uint8Array(await res.arrayBuffer());
+		out.push({ filename: a.filename || 'attachment', contentType: a.contentType || 'application/octet-stream', base64: bytesToBase64(bytes) });
+	}
+	for (const a of unsaved) {
+		const file = a.uploadId ? getPgpAttachmentFile(a.uploadId) : undefined;
+		if (!file) throw new Error(`attachment "${a.filename}" is not available — remove and re-attach it`);
+		// eslint-disable-next-line no-await-in-loop
+		const bytes = new Uint8Array(await file.arrayBuffer());
+		out.push({ filename: a.filename || file.name, contentType: a.contentType || file.type || 'application/octet-stream', base64: bytesToBase64(bytes) });
+	}
+	return out;
+}
 
 export const useSendHandlers = (
 	editorId: string,
@@ -127,19 +161,6 @@ export const useSendHandlers = (
 
 				// Encryption guards — block leaks until proper support lands (PGP roadmap B).
 				if (editor.isPgpEncrypt) {
-					// #0a: standard attachments are NOT encrypted yet — they would be sent in
-					// clear alongside the encrypted body. Block rather than leak them.
-					if (savedStandardAttachments.length > 0 || unsavedStandardAttachments.length > 0) {
-						createSnackbar({
-							key: `pgp-${editorId}`,
-							replace: true,
-							severity: 'error',
-							label: 'Attachments are not encrypted yet — remove them, or send without encryption',
-							autoHideTimeout: TIMEOUTS.SNACKBAR_DEFAULT_TIMEOUT,
-							hideButton: true
-						});
-						return;
-					}
 					// #0c: a single encrypted copy carries every recipient key ID in the PKESK,
 					// so a BCC recipient would be revealed to the To/CC recipients. Block BCC.
 					if (editor.recipients.bcc.length > 0) {
@@ -167,7 +188,24 @@ export const useSendHandlers = (
 					...editor.recipients.bcc
 				].map((r) => r.address).filter(Boolean);
 
-				const pgpParams = { senderEmail, recipientEmails, plainText, richText };
+				let pgpAttachments: Array<PgpAttachmentData> = [];
+				if (editor.isPgpEncrypt) {
+					try {
+						pgpAttachments = await gatherPgpAttachments(savedStandardAttachments, unsavedStandardAttachments);
+					} catch (e) {
+						createSnackbar({
+							key: `pgp-${editorId}`,
+							replace: true,
+							severity: 'error',
+							label: `Could not encrypt attachments: ${e instanceof Error ? e.message : String(e)}`,
+							autoHideTimeout: TIMEOUTS.SNACKBAR_DEFAULT_TIMEOUT,
+							hideButton: true
+						});
+						return;
+					}
+				}
+
+				const pgpParams = { senderEmail, recipientEmails, plainText, richText, attachments: pgpAttachments };
 
 				try {
 					const overrideMp = editor.isPgpEncrypt

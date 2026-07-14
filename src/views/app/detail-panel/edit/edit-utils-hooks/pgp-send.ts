@@ -20,6 +20,8 @@ export type PgpSendParams = {
 	recipientEmails: string[];
 	plainText: string;
 	richText: string;
+	// Standard attachments, encrypted inside the PGP message (encrypt path only).
+	attachments?: Array<{ filename: string; contentType: string; base64: string }>;
 };
 
 function randomBoundary(): string {

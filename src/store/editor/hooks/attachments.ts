@@ -24,6 +24,7 @@ import {
 import { getEditor } from 'store/editor/hooks/editors';
 import { SaveDraftOptions, useSaveDraftFromEditor } from 'store/editor/hooks/save-draft';
 import { computeAndUpdateEditorStatus, useEditorSetDirty } from 'store/editor/hooks/statuses';
+import { stashPgpAttachmentFile } from 'commons/pgp-attachment-cache';
 import { useEditorsStore } from 'store/editor/store';
 import { AttachmentUploadProcessStatus, UnsavedAttachment } from 'types/attachments';
 import { MailsEditorV2 } from 'types/editor';
@@ -148,6 +149,9 @@ export const useEditorAttachments = (editorId: MailsEditorV2['id']): EditorAttac
 
 		const unsavedAttachments = uploadsResult.map<UnsavedAttachment>(
 			({ file, uploadId, abortController }) => {
+				// Keep the File so a PGP-encrypted send can read its bytes client-side and
+				// encrypt them inside the message (no plaintext draft needed to fetch them).
+				stashPgpAttachmentFile(uploadId, file);
 				const attachment: UnsavedAttachment = {
 					filename: file.name,
 					contentType: file.type,

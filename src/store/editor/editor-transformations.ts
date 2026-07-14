@@ -412,7 +412,9 @@ const createSoapMessageRequestFromEditor = (
 		...(editor.isUrgent ? { f: '!' } : {})
 	};
 
-	const attach = composeAttachField(editor);
+	// When encrypting, attachments are carried INSIDE the encrypted body (pgpOverrideMp);
+	// adding the plaintext attach field too would send them in clear. Suppress it.
+	const attach = editor.isPgpEncrypt ? null : composeAttachField(editor);
 	attach && (draftMessage.attach = attach);
 	return draftMessage;
 };
