@@ -22,6 +22,8 @@ export type PgpSendParams = {
 	richText: string;
 	// Standard attachments, encrypted inside the PGP message (encrypt path only).
 	attachments?: Array<{ filename: string; contentType: string; base64: string }>;
+	// Inline images (cid:) embedded in a multipart/related inside the encrypted body.
+	inlineImages?: Array<{ filename: string; contentType: string; base64: string; contentId: string }>;
 };
 
 function randomBoundary(): string {

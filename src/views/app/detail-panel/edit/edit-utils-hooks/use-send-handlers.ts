@@ -30,6 +30,7 @@ import { EditViewClosingReasons } from 'types/editor';
 import { SaveDraftResponse } from 'types/soap/save-draft';
 
 type PgpAttachmentData = { filename: string; contentType: string; base64: string };
+type PgpInlineImageData = PgpAttachmentData & { contentId: string };
 
 /**
  * Read the bytes of every standard attachment so they can be encrypted INSIDE the
@@ -37,27 +38,37 @@ type PgpAttachmentData = { filename: string; contentType: string; base64: string
  * the File kept client-side at attach time. Throws if any attachment's bytes are
  * unavailable — the caller must then abort rather than send it in clear.
  */
-async function gatherPgpAttachments(
+async function gatherPgpParts(
 	saved: Array<SavedAttachment>,
 	unsaved: Array<UnsavedAttachment>
-): Promise<Array<PgpAttachmentData>> {
-	const out: Array<PgpAttachmentData> = [];
+): Promise<{ attachments: Array<PgpAttachmentData>; inlineImages: Array<PgpInlineImageData> }> {
+	const attachments: Array<PgpAttachmentData> = [];
+	const inlineImages: Array<PgpInlineImageData> = [];
+	const add = (
+		part: { isInline?: boolean; contentId?: string },
+		base64: string,
+		filename: string,
+		contentType: string
+	): void => {
+		if (part.isInline && part.contentId) inlineImages.push({ filename, contentType, base64, contentId: part.contentId });
+		else attachments.push({ filename, contentType, base64 });
+	};
 	for (const a of saved) {
 		// eslint-disable-next-line no-await-in-loop
 		const res = await fetch(composeAttachmentDownloadUrl(a));
 		if (!res.ok) throw new Error(`could not read attachment "${a.filename}" (HTTP ${res.status})`);
 		// eslint-disable-next-line no-await-in-loop
 		const bytes = new Uint8Array(await res.arrayBuffer());
-		out.push({ filename: a.filename || 'attachment', contentType: a.contentType || 'application/octet-stream', base64: bytesToBase64(bytes) });
+		add(a, bytesToBase64(bytes), a.filename || 'attachment', a.contentType || 'application/octet-stream');
 	}
 	for (const a of unsaved) {
 		const file = a.uploadId ? getPgpAttachmentFile(a.uploadId) : undefined;
 		if (!file) throw new Error(`attachment "${a.filename}" is not available — remove and re-attach it`);
 		// eslint-disable-next-line no-await-in-loop
 		const bytes = new Uint8Array(await file.arrayBuffer());
-		out.push({ filename: a.filename || file.name, contentType: a.contentType || file.type || 'application/octet-stream', base64: bytesToBase64(bytes) });
+		add(a, bytesToBase64(bytes), a.filename || file.name, a.contentType || file.type || 'application/octet-stream');
 	}
-	return out;
+	return { attachments, inlineImages };
 }
 
 export const useSendHandlers = (
@@ -189,18 +200,20 @@ export const useSendHandlers = (
 				].map((r) => r.address).filter(Boolean);
 
 				let pgpAttachments: Array<PgpAttachmentData> = [];
+				let pgpInlineImages: Array<PgpInlineImageData> = [];
 				if (editor.isPgpEncrypt) {
 					// Read attachments FRESH from the editor (not the possibly-stale hook closure).
-					const freshSaved = (editor.savedAttachments ?? []).filter((a) => !a.isInline);
-					const freshUnsaved = (editor.unsavedAttachments ?? []).filter((a) => !a.isInline);
+					const freshSaved = editor.savedAttachments ?? [];
+					const freshUnsaved = editor.unsavedAttachments ?? [];
 					// eslint-disable-next-line no-console
-					console.log('[pgp] send: standard attachments saved=', freshSaved.length, 'unsaved=', freshUnsaved.length,
-						'| unsaved=', freshUnsaved.map((a) => ({ file: a.filename, uploadId: a.uploadId })));
+					console.log('[pgp] send: attachments saved=', freshSaved.length, 'unsaved=', freshUnsaved.length);
 					try {
-						pgpAttachments = await gatherPgpAttachments(freshSaved, freshUnsaved);
+						const gathered = await gatherPgpParts(freshSaved, freshUnsaved);
+						pgpAttachments = gathered.attachments;
+						pgpInlineImages = gathered.inlineImages;
 						// eslint-disable-next-line no-console
-						console.log('[pgp] send: gathered', pgpAttachments.length, 'attachment(s), total b64 chars=',
-							pgpAttachments.reduce((n, a) => n + a.base64.length, 0));
+						console.log('[pgp] send: gathered', pgpAttachments.length, 'attachment(s),', pgpInlineImages.length, 'inline image(s), b64 chars=',
+							[...pgpAttachments, ...pgpInlineImages].reduce((n, a) => n + a.base64.length, 0));
 					} catch (e) {
 						createSnackbar({
 							key: `pgp-${editorId}`,
@@ -214,7 +227,7 @@ export const useSendHandlers = (
 					}
 				}
 
-				const pgpParams = { senderEmail, recipientEmails, plainText, richText, attachments: pgpAttachments };
+				const pgpParams = { senderEmail, recipientEmails, plainText, richText, attachments: pgpAttachments, inlineImages: pgpInlineImages };
 
 				try {
 					const overrideMp = editor.isPgpEncrypt
