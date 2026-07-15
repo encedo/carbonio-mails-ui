@@ -33,6 +33,27 @@ type PgpAttachmentData = { filename: string; contentType: string; base64: string
 type PgpInlineImageData = PgpAttachmentData & { contentId: string };
 
 /**
+ * Point every inline <img> at its cid: URL so it resolves against the embedded image
+ * part on the recipient side. The editor keeps the cid in pnsrc/data-src/data-mce-src;
+ * the live src may be a blob:/service URL that only works in the sender's own session
+ * (a bare service URL shows as a broken image in ProtonMail, etc.).
+ */
+function rewriteInlineImagesToCid(html: string): string {
+	try {
+		const doc = new DOMParser().parseFromString(html, 'text/html');
+		doc.querySelectorAll('img').forEach((img) => {
+			const cid = ['pnsrc', 'data-src', 'data-mce-src']
+				.map((attr) => img.getAttribute(attr))
+				.find((v) => v && /^cid:/i.test(v));
+			if (cid) img.setAttribute('src', cid);
+		});
+		return doc.body.innerHTML;
+	} catch {
+		return html;
+	}
+}
+
+/**
  * Read the bytes of every standard attachment so they can be encrypted INSIDE the
  * PGP message. Saved attachments are fetched over REST; unsaved ones are read from
  * the File kept client-side at attach time. Throws if any attachment's bytes are
@@ -192,7 +213,12 @@ export const useSendHandlers = (
 				const senderEmail = identity?.fromAddress ?? '';
 
 				const plainText = editor.textProvider?.getCurrentText()?.plainText ?? editor.text?.plainText ?? '';
-				const richText  = editor.textProvider?.getCurrentText()?.richText  ?? editor.text?.richText  ?? '';
+				// Rewrite inline-image <img src="/service/…"> to cid: refs so they resolve against
+				// the embedded image parts on the recipient side (a bare service URL only works in
+				// the sender's own authenticated session — e.g. broken in ProtonMail).
+				const richText  = rewriteInlineImagesToCid(
+					editor.textProvider?.getCurrentText()?.richText ?? editor.text?.richText ?? ''
+				);
 				const recipientEmails = [
 					...editor.recipients.to,
 					...editor.recipients.cc,
