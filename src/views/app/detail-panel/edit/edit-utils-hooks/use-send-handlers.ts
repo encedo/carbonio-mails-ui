@@ -191,22 +191,8 @@ export const useSendHandlers = (
 					return;
 				}
 
-				// Encryption guards — block leaks until proper support lands (PGP roadmap B).
-				if (editor.isPgpEncrypt) {
-					// #0c: a single encrypted copy carries every recipient key ID in the PKESK,
-					// so a BCC recipient would be revealed to the To/CC recipients. Block BCC.
-					if (editor.recipients.bcc.length > 0) {
-						createSnackbar({
-							key: `pgp-${editorId}`,
-							replace: true,
-							severity: 'error',
-							label: 'BCC is not supported with encryption yet — it would reveal the hidden recipients. Remove BCC.',
-							autoHideTimeout: TIMEOUTS.SNACKBAR_DEFAULT_TIMEOUT,
-							hideButton: true
-						});
-						return;
-					}
-				}
+				// #0c resolved: the encrypt path sets wildcard (key ID 0) on every recipient
+				// PKESK, so BCC recipients are not revealed to To/CC — no BCC block needed.
 
 				const { getIdentityDescriptor } = await import('helpers/identities');
 				const identity = getIdentityDescriptor(editor.identityId);
