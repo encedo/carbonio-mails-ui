@@ -70,7 +70,7 @@ export const useSendHandlers = (
 	const { setAutoSendTime } = useEditorAutoSendTime(editorId);
 	const { saveDraft } = useEditorDraftSave(editorId);
 	const { send: sendMessage } = useEditorSend(editorId);
-	const { savedStandardAttachments, unsavedStandardAttachments } = useEditorAttachments(editorId);
+	const { savedStandardAttachments } = useEditorAttachments(editorId);
 	const createSnackbar = useSnackbar();
 	const { createModal, closeModal } = useModal();
 
@@ -190,8 +190,17 @@ export const useSendHandlers = (
 
 				let pgpAttachments: Array<PgpAttachmentData> = [];
 				if (editor.isPgpEncrypt) {
+					// Read attachments FRESH from the editor (not the possibly-stale hook closure).
+					const freshSaved = (editor.savedAttachments ?? []).filter((a) => !a.isInline);
+					const freshUnsaved = (editor.unsavedAttachments ?? []).filter((a) => !a.isInline);
+					// eslint-disable-next-line no-console
+					console.log('[pgp] send: standard attachments saved=', freshSaved.length, 'unsaved=', freshUnsaved.length,
+						'| unsaved=', freshUnsaved.map((a) => ({ file: a.filename, uploadId: a.uploadId })));
 					try {
-						pgpAttachments = await gatherPgpAttachments(savedStandardAttachments, unsavedStandardAttachments);
+						pgpAttachments = await gatherPgpAttachments(freshSaved, freshUnsaved);
+						// eslint-disable-next-line no-console
+						console.log('[pgp] send: gathered', pgpAttachments.length, 'attachment(s), total b64 chars=',
+							pgpAttachments.reduce((n, a) => n + a.base64.length, 0));
 					} catch (e) {
 						createSnackbar({
 							key: `pgp-${editorId}`,
