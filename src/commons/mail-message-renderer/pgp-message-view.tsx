@@ -172,23 +172,37 @@ export const PgpMessageView = ({ message }: PgpMessageViewProps): React.JSX.Elem
 	const sigBadge =
 		status.state === 'done' ? (
 			status.sigValid === true ? (
-				<Text color="success" size="small">
+				<Text color="success" size="small" style={{ fontWeight: 600 }}>
 					✓ Signature valid — {status.signerEmail ?? 'unknown'}
 				</Text>
 			) : status.sigValid === false ? (
-				<Text color="error" size="small">
+				<Text color="error" size="small" style={{ fontWeight: 600 }}>
 					✗ Signature invalid
+				</Text>
+			) : status.signerEmail ? (
+				<Text color="secondary" size="small">
+					⚠ Signed by {status.signerEmail} — key unavailable, not verified
 				</Text>
 			) : null
 		) : null;
+
+	// Banner tint reflects the outcome: green when the signature verified, red on
+	// failure/error, neutral blue otherwise.
+	const bannerBg =
+		status.state === 'done' && status.sigValid === true
+			? '#e8f5e9'
+			: (status.state === 'done' && status.sigValid === false) || status.state === 'error'
+				? '#fdecea'
+				: '#f0f4ff';
 
 	return (
 		<Container crossAlignment="flex-start" gap="8px" padding={{ bottom: 'medium' }}>
 			{/* Status banner */}
 			<Row
 				gap="8px"
+				mainAlignment="flex-start"
 				padding={{ all: 'small' }}
-				style={{ background: '#f0f4ff', borderRadius: 4, width: '100%' }}
+				style={{ background: bannerBg, borderRadius: 6, width: '100%', border: '1px solid rgba(0,0,0,0.08)' }}
 			>
 				{message.isPgpEncrypted && (
 					<Text size="small" style={{ fontWeight: 600 }}>
@@ -220,12 +234,21 @@ export const PgpMessageView = ({ message }: PgpMessageViewProps): React.JSX.Elem
 				)}
 			</Row>
 
-			{/* Decrypted content */}
+			{/* Decrypted content — framed like a card so plain-text signed mail reads cleanly */}
 			{status.state === 'done' && (
 				<div
-					ref={decryptedRef}
-					style={{ width: '100%', overflow: 'auto' }}
-				/>
+					style={{
+						width: '100%',
+						overflow: 'auto',
+						border: '1px solid #e0e0e0',
+						borderRadius: 6,
+						padding: '12px 16px',
+						background: '#ffffff',
+						boxSizing: 'border-box',
+					}}
+				>
+					<div ref={decryptedRef} />
+				</div>
 			)}
 		</Container>
 	);
