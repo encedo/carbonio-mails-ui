@@ -5,7 +5,7 @@
  */
 import React, { FC } from 'react';
 
-import { Button, Tooltip } from '@zextras/carbonio-design-system';
+import { Button, Padding, Text, Tooltip } from '@zextras/carbonio-design-system';
 
 import { usePgpHandlers } from '../edit-utils-hooks/use-pgp-handlers';
 import { MailsEditorV2 } from 'types/editor';
@@ -47,14 +47,27 @@ export const PgpButtons: FC<PgpButtonsProps> = ({ editorId }) => {
 						? 'PGP Encrypt: ON — click to disable'
 						: 'Encrypt message with PGP (WKD keys)';
 
+	const activeLabel = isPgpEncrypt
+		? 'PGP Encrypt & Sign active'
+		: isPgpSign
+			? 'PGP Sign active'
+			: '';
+
 	return (
 		<>
+			{activeLabel && (
+				<Padding right="small">
+					<Text color="success" size="small" weight="bold">
+						{activeLabel}
+					</Text>
+				</Padding>
+			)}
 			<Tooltip label={signTooltip}>
 				<Button
 					data-testid="BtnPgpSign"
 					type={isPgpSign ? 'default' : 'outlined'}
 					size="large"
-					color={isPgpSign ? 'primary' : 'gray0'}
+					color={isPgpSign ? 'success' : 'gray0'}
 					icon="Signature"
 					onClick={handlePgpSignToggle}
 					disabled={!isHsmUnlocked}
@@ -65,7 +78,7 @@ export const PgpButtons: FC<PgpButtonsProps> = ({ editorId }) => {
 					data-testid="BtnPgpEncrypt"
 					type={isPgpEncrypt ? 'default' : 'outlined'}
 					size="large"
-					color={isPgpEncrypt ? 'primary' : 'gray0'}
+					color={isPgpEncrypt ? 'success' : 'gray0'}
 					icon="LockOutline"
 					onClick={handlePgpEncryptToggle}
 					disabled={!isHsmUnlocked || !allAvailable || anyChecking}

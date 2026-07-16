@@ -136,13 +136,19 @@ export const usePgpHandlers = (editorId: string): UsePgpHandlersReturn => {
 			getPgpPrefs().alwaysEncrypt
 		) {
 			setIsPgpEncrypt(true);
+			setIsPgpSign(true); // encryption always signs
 		}
-	}, [encryptStatuses, isHsmUnlocked, isPgpEncrypt, recipients, setIsPgpEncrypt]);
+	}, [encryptStatuses, isHsmUnlocked, isPgpEncrypt, recipients, setIsPgpEncrypt, setIsPgpSign]);
 
+	// Valid states are: plaintext, Sign, Encrypt&Sign — encryption always signs, so there
+	// is no "encrypt without sign". Turning encrypt on forces sign on; turning sign off
+	// while encrypting drops back to plaintext.
 	const handlePgpSignToggle = useCallback(() => {
 		signPrefAppliedRef.current = true;
-		setIsPgpSign(!isPgpSign);
-	}, [isPgpSign, setIsPgpSign]);
+		const next = !isPgpSign;
+		setIsPgpSign(next);
+		if (!next && isPgpEncrypt) setIsPgpEncrypt(false);
+	}, [isPgpSign, isPgpEncrypt, setIsPgpSign, setIsPgpEncrypt]);
 
 	const handlePgpEncryptToggle = useCallback(() => {
 		const allRecipients = [...recipients.to, ...recipients.cc, ...recipients.bcc].map(
@@ -151,8 +157,14 @@ export const usePgpHandlers = (editorId: string): UsePgpHandlersReturn => {
 		const allAvailable = allRecipients.every((a) => encryptStatuses[a] === 'available');
 		if (!allAvailable) return;
 		encryptToggledByUserRef.current = true;
-		setIsPgpEncrypt(!isPgpEncrypt);
-	}, [isPgpEncrypt, setIsPgpEncrypt, recipients, encryptStatuses]);
+		const next = !isPgpEncrypt;
+		setIsPgpEncrypt(next);
+		if (next) {
+			// Encryption implies signing — light up Sign too.
+			signPrefAppliedRef.current = true;
+			setIsPgpSign(true);
+		}
+	}, [isPgpEncrypt, setIsPgpEncrypt, setIsPgpSign, recipients, encryptStatuses]);
 
 	return {
 		isPgpSign,
