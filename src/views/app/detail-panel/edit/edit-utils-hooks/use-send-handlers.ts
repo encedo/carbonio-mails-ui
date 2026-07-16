@@ -14,6 +14,7 @@ import { getErrorSnackbarProps } from './use-error-handler';
 import { buildEncryptedMp, buildSignedMp } from './pgp-send';
 import { createEditBoard } from '../edit-view-board';
 import { bytesToBase64, getPgpAttachmentFile } from 'commons/pgp-attachment-cache';
+import { getPgpPrefs } from 'commons/pgp-prefs';
 import { composeAttachmentDownloadUrl } from 'helpers/attachments';
 import { SavedAttachment, UnsavedAttachment } from 'types/attachments';
 import { EDIT_VIEW_CLOSING_REASONS, EditViewActions, TIMEOUTS } from 'constants/index';
@@ -191,8 +192,21 @@ export const useSendHandlers = (
 					return;
 				}
 
-				// #0c resolved: the encrypt path sets wildcard (key ID 0) on every recipient
-				// PKESK, so BCC recipients are not revealed to To/CC — no BCC block needed.
+				// #0c: a single encrypted copy carries every recipient's key ID in its PKESK, so a
+				// BCC recipient would be revealed to the To/CC recipients. The "wildcard" privacy
+				// preference hides the key IDs (allowing BCC) at the cost of Thunderbird/RNP being
+				// unable to decrypt; when it's off, block encrypt+BCC to avoid the leak.
+				if (editor.isPgpEncrypt && editor.recipients.bcc.length > 0 && !getPgpPrefs().wildcard) {
+					createSnackbar({
+						key: `pgp-${editorId}`,
+						replace: true,
+						severity: 'error',
+						label: 'BCC is not supported with encryption yet — it would reveal the hidden recipients. Remove BCC.',
+						autoHideTimeout: TIMEOUTS.SNACKBAR_DEFAULT_TIMEOUT,
+						hideButton: true
+					});
+					return;
+				}
 
 				const { getIdentityDescriptor } = await import('helpers/identities');
 				const identity = getIdentityDescriptor(editor.identityId);

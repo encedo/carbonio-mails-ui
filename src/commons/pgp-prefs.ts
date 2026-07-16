@@ -14,12 +14,15 @@ export type PgpPrefs = {
 	alwaysSign: boolean;
 	alwaysEncrypt: boolean;
 	autoDecrypt: boolean;
+	/** Hide recipient key IDs (wildcard). When on, BCC is allowed with encryption. */
+	wildcard: boolean;
 };
 
 const PGP_PREF_KEYS: Record<keyof PgpPrefs, string> = {
 	alwaysSign: 'pgp.pref.alwaysSign',
 	alwaysEncrypt: 'pgp.pref.alwaysEncrypt',
-	autoDecrypt: 'pgp.pref.autoDecrypt'
+	autoDecrypt: 'pgp.pref.autoDecrypt',
+	wildcard: 'pgp.pref.wildcard'
 };
 
 export const getPgpPrefs = (): PgpPrefs => {
@@ -27,9 +30,10 @@ export const getPgpPrefs = (): PgpPrefs => {
 		return {
 			alwaysSign: localStorage.getItem(PGP_PREF_KEYS.alwaysSign) === 'true',
 			alwaysEncrypt: localStorage.getItem(PGP_PREF_KEYS.alwaysEncrypt) === 'true',
-			autoDecrypt: localStorage.getItem(PGP_PREF_KEYS.autoDecrypt) === 'true'
+			autoDecrypt: localStorage.getItem(PGP_PREF_KEYS.autoDecrypt) === 'true',
+			wildcard: localStorage.getItem(PGP_PREF_KEYS.wildcard) === 'true'
 		};
 	} catch {
-		return { alwaysSign: false, alwaysEncrypt: false, autoDecrypt: false };
+		return { alwaysSign: false, alwaysEncrypt: false, autoDecrypt: false, wildcard: false };
 	}
 };
