@@ -373,12 +373,15 @@ export const EditView = React.forwardRef<EditViewHandle, EditViewProp>(function 
 					{/* Header start */}
 
 					<GapRow
-						mainAlignment={showIdentitySelector ? 'space-between' : 'flex-end'}
+						mainAlignment={'space-between'}
 						orientation="horizontal"
 						width="fill"
 						gap={'medium'}
 					>
-						{showIdentitySelector && <MemoizedEditViewIdentitySelector editorId={editorId} />}
+						<GapRow gap={'medium'} padding={{ top: 'small' }}>
+							{showIdentitySelector && <MemoizedEditViewIdentitySelector editorId={editorId} />}
+							<PgpButtons editorId={editorId} />
+						</GapRow>
 
 						<GapRow
 							mainAlignment={'flex-end'}
@@ -386,7 +389,6 @@ export const EditView = React.forwardRef<EditViewHandle, EditViewProp>(function 
 							padding={{ top: 'small', right: 'small' }}
 						>
 							<MemoizedAddAttachmentsDropdown editorId={editorId} />
-							<PgpButtons editorId={editorId} />
 							<MemoizedChangeSignaturesDropdown editorId={editorId} />
 							<MemoizedOptionsDropdown
 								editorId={editorId}
