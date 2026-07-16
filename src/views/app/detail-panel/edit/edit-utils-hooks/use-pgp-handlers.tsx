@@ -22,7 +22,7 @@ function getHsmSingleton(): any {
 	}
 }
 
-type RecipientStatus = 'trusted' | 'available' | 'unavailable';
+type RecipientStatus = 'trusted' | 'mismatch' | 'available' | 'unavailable';
 
 async function recipientStatus(email: string): Promise<RecipientStatus> {
 	try {

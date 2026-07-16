@@ -30,6 +30,8 @@ export const PgpButtons: FC<PgpButtonsProps> = ({ editorId }) => {
 		hasRecipients && encryptValues.every((s) => s === 'available' || s === 'trusted');
 	// TRUSTED = every recipient's key was deliberately imported into the HSM (not just found live).
 	const allTrusted = hasRecipients && encryptValues.every((s) => s === 'trusted');
+	// MISMATCH = a trusted peer's published (WKD) key no longer matches the key pinned in the HSM.
+	const anyMismatch = encryptValues.some((s) => s === 'mismatch');
 	const anyChecking = encryptValues.some((s) => s === 'checking');
 
 	const signTooltip = !isHsmUnlocked
@@ -44,6 +46,8 @@ export const PgpButtons: FC<PgpButtonsProps> = ({ editorId }) => {
 			? 'Add recipients to enable encryption'
 			: anyChecking
 				? 'Checking WKD keys…'
+				: anyMismatch
+					? 'A trusted recipient key changed — fingerprint mismatch'
 				: !allAvailable
 					? 'Some recipients have no PGP key in WKD'
 					: isPgpEncrypt
@@ -58,7 +62,14 @@ export const PgpButtons: FC<PgpButtonsProps> = ({ editorId }) => {
 
 	return (
 		<>
-			{activeLabel && (
+			{anyMismatch && (
+				<Padding right="small">
+					<Text color="error" size="small" weight="bold">
+						Key fingerprint mismatch
+					</Text>
+				</Padding>
+			)}
+			{!anyMismatch && activeLabel && (
 				<Padding right="small">
 					<Text color="success" size="small" weight="bold">
 						{activeLabel}
