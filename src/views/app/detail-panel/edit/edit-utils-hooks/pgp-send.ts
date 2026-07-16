@@ -34,26 +34,24 @@ function randomBoundary(): string {
 
 /**
  * Build MIME mp[] for a sign-only message.
- * Plain text part is replaced with inline PGP cleartext signature.
- * HTML part is left as-is.
+ *
+ * The body is a SINGLE text/plain part holding the inline PGP cleartext signature
+ * (-----BEGIN PGP SIGNED MESSAGE-----). It must be the sole body part: when the signed
+ * text lived in a multipart/alternative alongside an HTML part, Carbonio's server
+ * collapsed the alternative down to the HTML part and dropped the signed text entirely
+ * (the signature never reached the recipient). A lone text/plain has nothing to collapse,
+ * so the signature survives and PGP-aware clients can verify it. Trade-off: sign-only
+ * messages are plain text (no HTML) — inherent to inline PGP; RFC 3156 multipart/signed
+ * would keep HTML but is blocked by the same server re-serialization.
  */
 export async function buildSignedMp(params: PgpSendParams): Promise<SoapEmailMessagePartObj[]> {
 	const signedPlain: string = await pgpCall('__encedoPgpSignOnly', params);
 
 	return [
 		{
-			ct: 'multipart/alternative',
-			mp: [
-				{
-					ct: 'text/html',
-					body: true,
-					content: { _content: params.richText },
-				},
-				{
-					ct: 'text/plain',
-					content: { _content: signedPlain },
-				},
-			],
+			ct: 'text/plain',
+			body: true,
+			content: { _content: signedPlain },
 		},
 	];
 }
