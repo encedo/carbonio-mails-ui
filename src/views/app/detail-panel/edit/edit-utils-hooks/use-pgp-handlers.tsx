@@ -22,14 +22,20 @@ function getHsmSingleton(): any {
 	}
 }
 
-async function wkdHasKey(email: string): Promise<boolean> {
+type RecipientStatus = 'trusted' | 'available' | 'unavailable';
+
+async function recipientStatus(email: string): Promise<RecipientStatus> {
 	try {
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const statusFn = (window as any).__encedoPgpRecipientStatus;
+		if (statusFn) return await statusFn(email);
+		// Fallback for older pgp-ui builds without the richer status bridge.
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const checkWkd = (window as any).__encedoPgpCheckWkd;
-		if (checkWkd) return checkWkd(email);
-		return false;
+		if (checkWkd) return (await checkWkd(email)) ? 'available' : 'unavailable';
+		return 'unavailable';
 	} catch {
-		return false;
+		return 'unavailable';
 	}
 }
 
@@ -37,7 +43,7 @@ export type UsePgpHandlersReturn = {
 	isPgpSign: boolean | undefined;
 	isPgpEncrypt: boolean | undefined;
 	isHsmUnlocked: boolean;
-	encryptStatuses: Record<string, 'checking' | 'available' | 'unavailable'>;
+	encryptStatuses: Record<string, 'checking' | RecipientStatus>;
 	handlePgpSignToggle: () => void;
 	handlePgpEncryptToggle: () => void;
 };
@@ -48,7 +54,7 @@ export const usePgpHandlers = (editorId: string): UsePgpHandlersReturn => {
 	const { recipients } = useEditorRecipients(editorId);
 	const [isHsmUnlocked, setIsHsmUnlocked] = useState(false);
 	const [encryptStatuses, setEncryptStatuses] = useState<
-		Record<string, 'checking' | 'available' | 'unavailable'>
+		Record<string, 'checking' | RecipientStatus>
 	>({});
 	const checkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -78,7 +84,7 @@ export const usePgpHandlers = (editorId: string): UsePgpHandlersReturn => {
 
 		// Mark all as checking
 		setEncryptStatuses((prev) => {
-			const next: Record<string, 'checking' | 'available' | 'unavailable'> = {};
+			const next: Record<string, 'checking' | RecipientStatus> = {};
 			for (const addr of allRecipients) next[addr] = prev[addr] ?? 'checking';
 			return next;
 		});
@@ -86,12 +92,12 @@ export const usePgpHandlers = (editorId: string): UsePgpHandlersReturn => {
 		if (checkTimerRef.current) clearTimeout(checkTimerRef.current);
 		checkTimerRef.current = setTimeout(async () => {
 			const results = await Promise.allSettled(
-				allRecipients.map(async (addr) => ({ addr, has: await wkdHasKey(addr) }))
+				allRecipients.map(async (addr) => ({ addr, status: await recipientStatus(addr) }))
 			);
-			const next: Record<string, 'available' | 'unavailable'> = {};
+			const next: Record<string, RecipientStatus> = {};
 			for (const r of results) {
 				if (r.status === 'fulfilled') {
-					next[r.value.addr] = r.value.has ? 'available' : 'unavailable';
+					next[r.value.addr] = r.value.status;
 				}
 			}
 			setEncryptStatuses(next);
@@ -124,7 +130,9 @@ export const usePgpHandlers = (editorId: string): UsePgpHandlersReturn => {
 			setIsPgpEncrypt(false);
 			return;
 		}
-		const allAvailable = allRecipients.every((a) => encryptStatuses[a] === 'available');
+		const allAvailable = allRecipients.every(
+			(a) => encryptStatuses[a] === 'available' || encryptStatuses[a] === 'trusted'
+		);
 		if (!allAvailable) {
 			if (isPgpEncrypt) setIsPgpEncrypt(false);
 			return;
@@ -154,7 +162,9 @@ export const usePgpHandlers = (editorId: string): UsePgpHandlersReturn => {
 		const allRecipients = [...recipients.to, ...recipients.cc, ...recipients.bcc].map(
 			(r) => r.address
 		);
-		const allAvailable = allRecipients.every((a) => encryptStatuses[a] === 'available');
+		const allAvailable = allRecipients.every(
+			(a) => encryptStatuses[a] === 'available' || encryptStatuses[a] === 'trusted'
+		);
 		if (!allAvailable) return;
 		encryptToggledByUserRef.current = true;
 		const next = !isPgpEncrypt;

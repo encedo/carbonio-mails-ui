@@ -26,7 +26,10 @@ export const PgpButtons: FC<PgpButtonsProps> = ({ editorId }) => {
 
 	const encryptValues = Object.values(encryptStatuses);
 	const hasRecipients = encryptValues.length > 0;
-	const allAvailable = hasRecipients && encryptValues.every((s) => s === 'available');
+	const allAvailable =
+		hasRecipients && encryptValues.every((s) => s === 'available' || s === 'trusted');
+	// TRUSTED = every recipient's key was deliberately imported into the HSM (not just found live).
+	const allTrusted = hasRecipients && encryptValues.every((s) => s === 'trusted');
 	const anyChecking = encryptValues.some((s) => s === 'checking');
 
 	const signTooltip = !isHsmUnlocked
@@ -59,6 +62,7 @@ export const PgpButtons: FC<PgpButtonsProps> = ({ editorId }) => {
 				<Padding right="small">
 					<Text color="success" size="small" weight="bold">
 						{activeLabel}
+						{isPgpEncrypt && allTrusted ? ' · TRUSTED' : ''}
 					</Text>
 				</Padding>
 			)}
