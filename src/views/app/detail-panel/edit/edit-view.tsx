@@ -386,6 +386,7 @@ export const EditView = React.forwardRef<EditViewHandle, EditViewProp>(function 
 							padding={{ top: 'small', right: 'small' }}
 						>
 							<MemoizedAddAttachmentsDropdown editorId={editorId} />
+							<PgpButtons editorId={editorId} />
 							<MemoizedChangeSignaturesDropdown editorId={editorId} />
 							<MemoizedOptionsDropdown
 								editorId={editorId}
@@ -397,7 +398,6 @@ export const EditView = React.forwardRef<EditViewHandle, EditViewProp>(function 
 								}
 								isSmimeEnabled={isSmimeEnabled}
 							/>
-							<PgpButtons editorId={editorId} />
 						<Tooltip
 								label={saveDraftAllowedStatus?.reason}
 								disabled={saveDraftAllowedStatus?.allowed}
