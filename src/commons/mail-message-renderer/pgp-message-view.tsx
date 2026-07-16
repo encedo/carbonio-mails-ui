@@ -140,6 +140,28 @@ export const PgpMessageView = ({ message }: PgpMessageViewProps): React.JSX.Elem
 		if (openSettings) openSettings();
 	}, [decrypt]);
 
+	// Download the raw encrypted PGP blob (encrypted.asc) so it can be decrypted with an
+	// external tool (Kleopatra / gpg) — useful for interop testing and for recipients whose
+	// private key lives outside the HSM.
+	const downloadAsc = useCallback(async () => {
+		try {
+			const partNum = findPgpPartNumber(message);
+			if (!partNum) return;
+			const armored = await fetchArmoredMessage(message.id, partNum);
+			const blob = new Blob([armored], { type: 'application/pgp-encrypted' });
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = `encrypted-${message.id}.asc`;
+			document.body.appendChild(a);
+			a.click();
+			a.remove();
+			URL.revokeObjectURL(url);
+		} catch {
+			/* ignore — best-effort download */
+		}
+	}, [message]);
+
 	// Drop the previous result if the panel is reused for another message
 	const shownIdRef = useRef(message.id);
 	useEffect(() => {
@@ -231,6 +253,9 @@ export const PgpMessageView = ({ message }: PgpMessageViewProps): React.JSX.Elem
 				)}
 				{status.state === 'idle' && message.isPgpEncrypted && (
 					<Button size="small" label="Decrypt" onClick={decrypt} />
+				)}
+				{message.isPgpEncrypted && (
+					<Button size="small" type="outlined" label="Download .asc" onClick={downloadAsc} />
 				)}
 			</Row>
 
