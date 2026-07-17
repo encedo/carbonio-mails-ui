@@ -13,7 +13,7 @@ import { checkSubjectAndAttachment } from '../check-subject-attachment';
 import { getErrorSnackbarProps } from './use-error-handler';
 import { buildEncryptedMp, buildSignedMp } from './pgp-send';
 import { createEditBoard } from '../edit-view-board';
-import { bytesToBase64, getPgpAttachmentFile } from 'commons/pgp-attachment-cache';
+import { bytesToBase64, getPgpAttachmentFile, clearPgpAttachmentFile } from 'commons/pgp-attachment-cache';
 import { getPgpPrefs } from 'commons/pgp-prefs';
 import { composeAttachmentDownloadUrl } from 'helpers/attachments';
 import { SavedAttachment, UnsavedAttachment } from 'types/attachments';
@@ -227,10 +227,13 @@ export const useSendHandlers = (
 
 				let pgpAttachments: Array<PgpAttachmentData> = [];
 				let pgpInlineImages: Array<PgpInlineImageData> = [];
+				// Upload IDs whose retained File we can release once the bytes are encrypted in.
+				const pgpFileUploadIds: string[] = [];
 				if (editor.isPgpEncrypt) {
 					// Read attachments FRESH from the editor (not the possibly-stale hook closure).
 					const freshSaved = editor.savedAttachments ?? [];
 					const freshUnsaved = editor.unsavedAttachments ?? [];
+					for (const a of freshUnsaved) if (a.uploadId) pgpFileUploadIds.push(a.uploadId);
 					// eslint-disable-next-line no-console
 					console.log('[pgp] send: attachments saved=', freshSaved.length, 'unsaved=', freshUnsaved.length);
 					try {
@@ -260,6 +263,8 @@ export const useSendHandlers = (
 						? await buildEncryptedMp(pgpParams)
 						: await buildSignedMp(pgpParams);
 					addEditor({ id: editorId, editor: { ...editor, pgpOverrideMp: overrideMp } });
+					// Bytes are now encrypted inside pgpOverrideMp — release the retained Files.
+					pgpFileUploadIds.forEach(clearPgpAttachmentFile);
 				} catch (e) {
 					createSnackbar({
 						key: `pgp-${editorId}`,

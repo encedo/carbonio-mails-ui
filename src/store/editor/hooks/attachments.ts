@@ -24,7 +24,7 @@ import {
 import { getEditor } from 'store/editor/hooks/editors';
 import { SaveDraftOptions, useSaveDraftFromEditor } from 'store/editor/hooks/save-draft';
 import { computeAndUpdateEditorStatus, useEditorSetDirty } from 'store/editor/hooks/statuses';
-import { stashPgpAttachmentFile } from 'commons/pgp-attachment-cache';
+import { stashPgpAttachmentFile, clearPgpAttachmentFile } from 'commons/pgp-attachment-cache';
 import { useEditorsStore } from 'store/editor/store';
 import { AttachmentUploadProcessStatus, UnsavedAttachment } from 'types/attachments';
 import { MailsEditorV2 } from 'types/editor';
@@ -326,6 +326,7 @@ export const useEditorAttachments = (editorId: MailsEditorV2['id']): EditorAttac
 		unsavedStandardAttachments,
 		savedStandardAttachments,
 		removeUnsavedAttachment: (uploadId: string): void => {
+			clearPgpAttachmentFile(uploadId); // release the retained File for a removed attachment
 			removeUnsavedAttachmentsInvoker(editorId, uploadId);
 			computeAndUpdateEditorStatus(editorId);
 			setDirty();
