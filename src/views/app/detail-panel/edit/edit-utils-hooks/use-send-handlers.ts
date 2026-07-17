@@ -10,14 +10,17 @@ import { useModal, useSnackbar } from '@zextras/carbonio-design-system';
 import { ErrorSoapBodyResponse, t } from '@zextras/carbonio-shell-ui';
 
 import { checkSubjectAndAttachment } from '../check-subject-attachment';
+import { buildEncryptedMp, buildSignedEml, buildSignedMp, uploadRawMime } from './pgp-send';
 import { getErrorSnackbarProps } from './use-error-handler';
-import { buildEncryptedMp, buildSignedMp } from './pgp-send';
 import { createEditBoard } from '../edit-view-board';
-import { bytesToBase64, getPgpAttachmentFile, clearPgpAttachmentFile } from 'commons/pgp-attachment-cache';
+import {
+	bytesToBase64,
+	getPgpAttachmentFile,
+	clearPgpAttachmentFile
+} from 'commons/pgp-attachment-cache';
 import { getPgpPrefs } from 'commons/pgp-prefs';
-import { composeAttachmentDownloadUrl } from 'helpers/attachments';
-import { SavedAttachment, UnsavedAttachment } from 'types/attachments';
 import { EDIT_VIEW_CLOSING_REASONS, EditViewActions, TIMEOUTS } from 'constants/index';
+import { composeAttachmentDownloadUrl } from 'helpers/attachments';
 import {
 	addEditor,
 	deleteEditor,
@@ -27,6 +30,7 @@ import {
 	useEditorDraftSave,
 	useEditorSend
 } from 'store/editor';
+import { SavedAttachment, UnsavedAttachment } from 'types/attachments';
 import { EditViewClosingReasons } from 'types/editor';
 import { SaveDraftResponse } from 'types/soap/save-draft';
 
@@ -72,7 +76,8 @@ async function gatherPgpParts(
 		filename: string,
 		contentType: string
 	): void => {
-		if (part.isInline && part.contentId) inlineImages.push({ filename, contentType, base64, contentId: part.contentId });
+		if (part.isInline && part.contentId)
+			inlineImages.push({ filename, contentType, base64, contentId: part.contentId });
 		else attachments.push({ filename, contentType, base64 });
 	};
 	for (const a of saved) {
@@ -81,14 +86,25 @@ async function gatherPgpParts(
 		if (!res.ok) throw new Error(`could not read attachment "${a.filename}" (HTTP ${res.status})`);
 		// eslint-disable-next-line no-await-in-loop
 		const bytes = new Uint8Array(await res.arrayBuffer());
-		add(a, bytesToBase64(bytes), a.filename || 'attachment', a.contentType || 'application/octet-stream');
+		add(
+			a,
+			bytesToBase64(bytes),
+			a.filename || 'attachment',
+			a.contentType || 'application/octet-stream'
+		);
 	}
 	for (const a of unsaved) {
 		const file = a.uploadId ? getPgpAttachmentFile(a.uploadId) : undefined;
-		if (!file) throw new Error(`attachment "${a.filename}" is not available — remove and re-attach it`);
+		if (!file)
+			throw new Error(`attachment "${a.filename}" is not available — remove and re-attach it`);
 		// eslint-disable-next-line no-await-in-loop
 		const bytes = new Uint8Array(await file.arrayBuffer());
-		add(a, bytesToBase64(bytes), a.filename || file.name, a.contentType || file.type || 'application/octet-stream');
+		add(
+			a,
+			bytesToBase64(bytes),
+			a.filename || file.name,
+			a.contentType || file.type || 'application/octet-stream'
+		);
 	}
 	return { attachments, inlineImages };
 }
@@ -201,7 +217,8 @@ export const useSendHandlers = (
 						key: `pgp-${editorId}`,
 						replace: true,
 						severity: 'error',
-						label: 'BCC is not supported with encryption yet — it would reveal the hidden recipients. Remove BCC.',
+						label:
+							'BCC is not supported with encryption yet — it would reveal the hidden recipients. Remove BCC.',
 						autoHideTimeout: TIMEOUTS.SNACKBAR_DEFAULT_TIMEOUT,
 						hideButton: true
 					});
@@ -212,43 +229,67 @@ export const useSendHandlers = (
 				const identity = getIdentityDescriptor(editor.identityId);
 				const senderEmail = identity?.fromAddress ?? '';
 
-				const plainText = editor.textProvider?.getCurrentText()?.plainText ?? editor.text?.plainText ?? '';
+				const plainText =
+					editor.textProvider?.getCurrentText()?.plainText ?? editor.text?.plainText ?? '';
 				// Rewrite inline-image <img src="/service/…"> to cid: refs so they resolve against
 				// the embedded image parts on the recipient side (a bare service URL only works in
 				// the sender's own authenticated session — e.g. broken in ProtonMail).
-				const richText  = rewriteInlineImagesToCid(
+				const richText = rewriteInlineImagesToCid(
 					editor.textProvider?.getCurrentText()?.richText ?? editor.text?.richText ?? ''
 				);
 				const recipientEmails = [
 					...editor.recipients.to,
 					...editor.recipients.cc,
 					...editor.recipients.bcc
-				].map((r) => r.address).filter(Boolean);
+				]
+					.map((r) => r.address)
+					.filter(Boolean);
+
+				// RFC 3156 multipart/signed (built client-side, delivered byte-exact via upload+aid)
+				// applies to sign-only when the preference is on and there is no BCC. With BCC we
+				// fall back to the inline path, which routes hidden recipients through the normal
+				// SOAP envelope (the aid path would need per-recipient sends to hide them).
+				const useRfc3156Sign =
+					!!editor.isPgpSign &&
+					!editor.isPgpEncrypt &&
+					getPgpPrefs().rfc3156Sign &&
+					editor.recipients.bcc.length === 0;
 
 				let pgpAttachments: Array<PgpAttachmentData> = [];
 				let pgpInlineImages: Array<PgpInlineImageData> = [];
-				// Upload IDs whose retained File we can release once the bytes are encrypted in.
+				// Upload IDs whose retained File we can release once the bytes are folded in.
 				const pgpFileUploadIds: string[] = [];
-				if (editor.isPgpEncrypt) {
+				if (editor.isPgpEncrypt || useRfc3156Sign) {
 					// Read attachments FRESH from the editor (not the possibly-stale hook closure).
 					const freshSaved = editor.savedAttachments ?? [];
 					const freshUnsaved = editor.unsavedAttachments ?? [];
 					for (const a of freshUnsaved) if (a.uploadId) pgpFileUploadIds.push(a.uploadId);
 					// eslint-disable-next-line no-console
-					console.log('[pgp] send: attachments saved=', freshSaved.length, 'unsaved=', freshUnsaved.length);
+					console.log(
+						'[pgp] send: attachments saved=',
+						freshSaved.length,
+						'unsaved=',
+						freshUnsaved.length
+					);
 					try {
 						const gathered = await gatherPgpParts(freshSaved, freshUnsaved);
 						pgpAttachments = gathered.attachments;
 						pgpInlineImages = gathered.inlineImages;
 						// eslint-disable-next-line no-console
-						console.log('[pgp] send: gathered', pgpAttachments.length, 'attachment(s),', pgpInlineImages.length, 'inline image(s), b64 chars=',
-							[...pgpAttachments, ...pgpInlineImages].reduce((n, a) => n + a.base64.length, 0));
+						console.log(
+							'[pgp] send: gathered',
+							pgpAttachments.length,
+							'attachment(s),',
+							pgpInlineImages.length,
+							'inline image(s), b64 chars=',
+							[...pgpAttachments, ...pgpInlineImages].reduce((n, a) => n + a.base64.length, 0)
+						);
 					} catch (e) {
 						createSnackbar({
 							key: `pgp-${editorId}`,
 							replace: true,
 							severity: 'error',
-							label: `Could not encrypt attachments: ${e instanceof Error ? e.message : String(e)}`,
+							label: `Could not prepare attachments: ${e instanceof Error ? e.message : String(e)}`,
 							autoHideTimeout: TIMEOUTS.SNACKBAR_DEFAULT_TIMEOUT,
 							hideButton: true
 						});
@@ -256,14 +297,53 @@ export const useSendHandlers = (
 					}
 				}
 
-				const pgpParams = { senderEmail, recipientEmails, plainText, richText, attachments: pgpAttachments, inlineImages: pgpInlineImages };
+				const pgpParams = {
+					senderEmail,
+					recipientEmails,
+					plainText,
+					richText,
+					attachments: pgpAttachments,
+					inlineImages: pgpInlineImages
+				};
 
 				try {
-					const overrideMp = editor.isPgpEncrypt
-						? await buildEncryptedMp(pgpParams)
-						: await buildSignedMp(pgpParams);
-					addEditor({ id: editorId, editor: { ...editor, pgpOverrideMp: overrideMp } });
-					// Bytes are now encrypted inside pgpOverrideMp — release the retained Files.
+					if (useRfc3156Sign) {
+						const toRcpts = editor.recipients.to
+							.map((r) => ({ email: r.address, name: r.fullName }))
+							.filter((r) => r.email);
+						const ccRcpts = editor.recipients.cc
+							.map((r) => ({ email: r.address, name: r.fullName }))
+							.filter((r) => r.email);
+						const eml = await buildSignedEml({
+							senderEmail,
+							senderName: identity?.fromDisplay,
+							to: toRcpts,
+							cc: ccRcpts,
+							subject: editor.subject ?? '',
+							plainText,
+							richText,
+							attachments: pgpAttachments,
+							inlineImages: pgpInlineImages
+						});
+						const aid = await uploadRawMime(eml);
+						// eslint-disable-next-line no-console
+						console.log(
+							'[pgp] send: RFC 3156 signed eml uploaded, aid=',
+							aid,
+							'bytes=',
+							eml.length
+						);
+						addEditor({
+							id: editorId,
+							editor: { ...editor, pgpRawUploadAid: aid, pgpOverrideMp: undefined }
+						});
+					} else {
+						const overrideMp = editor.isPgpEncrypt
+							? await buildEncryptedMp(pgpParams)
+							: await buildSignedMp(pgpParams);
+						addEditor({ id: editorId, editor: { ...editor, pgpOverrideMp: overrideMp } });
+					}
+					// Bytes are now folded into the outgoing message — release the retained Files.
 					pgpFileUploadIds.forEach(clearPgpAttachmentFile);
 				} catch (e) {
 					createSnackbar({

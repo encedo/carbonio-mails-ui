@@ -400,6 +400,19 @@ const createSoapMessageRequestFromEditor = (
 		p: participant.fullName ?? participant.name
 	}));
 
+	// PGP RFC 3156 signed path: a complete raw RFC822 was uploaded to FileUploadServlet and
+	// its aid stored on the editor. SendMsg with only <m aid="…"/> delivers those bytes
+	// verbatim (From/To/Cc/Subject/MIME all live inside the uploaded message), which is the
+	// only way to keep a detached signature intact — the mp-tree path re-serialises it.
+	if (command === 'sendmsg' && editor.pgpRawUploadAid) {
+		return {
+			autoSendTime: editor.autoSendTime,
+			did: editor.did,
+			aid: editor.pgpRawUploadAid,
+			...(editor.isUrgent ? { f: '!' } : {})
+		};
+	}
+
 	const draftMessage: SoapDraftMessageObj = {
 		autoSendTime: editor.autoSendTime,
 		...(command === 'savedraft' ? { id: editor.did } : {}),

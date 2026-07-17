@@ -91,7 +91,7 @@ const getSoapMailBodyContent = (
 	msg: SoapMailMessage | SoapDraftMessageObj,
 	contentType: typeof CT_HTML | typeof CT_PLAIN
 ): string => {
-	const mp = msg.mp[0];
+	const mp = msg.mp![0];
 	if (!mp) {
 		return '';
 	}
@@ -395,9 +395,9 @@ describe('Edit view', () => {
 
 			const { m: msg } = await sendMsgPromise;
 
-			expect(msg.su._content).toBe(subject);
+			expect(msg.su!._content).toBe(subject);
 
-			msg.e.forEach((participant) => {
+			msg.e!.forEach((participant) => {
 				if (participant.t === 't') {
 					expect(participant.a).toBe(address);
 				} else if (participant.t === 'f') {
@@ -662,15 +662,15 @@ describe('Edit view', () => {
 				const { m: msg } = await saveDraftInterceptor;
 
 				// Check the content of the message
-				expect(msg.su._content).toBe(subject);
-				msg.e.forEach((participant) => {
+				expect(msg.su!._content).toBe(subject);
+				msg.e!.forEach((participant) => {
 					if (participant.t === 't') {
 						expect(participant.a).toBe(recipient);
 					} else if (participant.t === 'f') {
 						expect(participant.a).toBe(sender);
 					}
 				});
-				expect(msg.mp[0]?.content?._content).toBe(body);
+				expect(msg.mp![0]?.content?._content).toBe(body);
 			});
 
 			it('changes the subject', async () => {
@@ -686,7 +686,7 @@ describe('Edit view', () => {
 				awaitDebouncedSaveDraft();
 
 				const { m: msg } = await draftSavingInterceptor;
-				expect(msg.su._content).toBe(subjectText);
+				expect(msg.su!._content).toBe(subjectText);
 			});
 
 			it('changes the TO recipient', async () => {
@@ -701,7 +701,7 @@ describe('Edit view', () => {
 				awaitDebouncedSaveDraft();
 
 				const { m: msg } = await draftSavingInterceptor;
-				const sentRecipient = msg.e[0];
+				const sentRecipient = msg.e![0];
 				expect(sentRecipient.a).toBe(recipient);
 			});
 
@@ -720,7 +720,7 @@ describe('Edit view', () => {
 				awaitDebouncedSaveDraft();
 
 				const { m: msg } = await draftSavingInterceptor;
-				expect(msg.mp[0]?.content?._content).toBe(body);
+				expect(msg.mp![0]?.content?._content).toBe(body);
 			});
 
 			it('attaches a file', async () => {

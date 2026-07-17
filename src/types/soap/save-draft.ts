@@ -49,13 +49,19 @@ export type SoapDraftMessageObj = {
 	autoSendTime?: number;
 	id?: string;
 	attach?: MailAttachment;
-	su: { _content: string };
-	mp: Array<SoapEmailMessagePartObj>;
-	e: Array<SoapEmailInfoObj>;
+	su?: { _content: string };
+	mp?: Array<SoapEmailMessagePartObj>;
+	e?: Array<SoapEmailInfoObj>;
 	f?: string;
 	did?: string;
 	rt?: string;
 	origid?: string;
+	/**
+	 * Upload ID of a raw RFC822 message (FileUploadServlet). When set, SendMsg sends this
+	 * message byte-exact and su/mp/e are omitted — used by the PGP RFC 3156 signed path,
+	 * the only way to deliver a detached signature without the server re-serialising it.
+	 */
+	aid?: string;
 };
 
 export type SaveDraftRequest = {

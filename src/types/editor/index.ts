@@ -187,6 +187,9 @@ export type MailsEditorV2 = {
 	isPgpEncrypt?: boolean;
 	// when set, overrides the mp[] built by getMP() in the outgoing SOAP request (used for PGP)
 	pgpOverrideMp?: import('../soap/save-draft').SoapEmailMessagePartObj[];
+	// when set, SendMsg delivers this uploaded raw RFC822 message byte-exact via <m aid="…"/>
+	// (PGP RFC 3156 multipart/signed path); su/mp/e are omitted
+	pgpRawUploadAid?: string;
 	// optional external text provider to get/set the editor text
 	textProvider?: EditorTextProvider;
 };

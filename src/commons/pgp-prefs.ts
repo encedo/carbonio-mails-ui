@@ -16,13 +16,19 @@ export type PgpPrefs = {
 	autoDecrypt: boolean;
 	/** Hide recipient key IDs (wildcard). When on, BCC is allowed with encryption. */
 	wildcard: boolean;
+	/**
+	 * Sign as RFC 3156 multipart/signed (delivered via upload+SendMsg aid, byte-exact) instead
+	 * of inline cleartext. ON by default (richer: keeps HTML, proper PGP/MIME signature).
+	 */
+	rfc3156Sign: boolean;
 };
 
 const PGP_PREF_KEYS: Record<keyof PgpPrefs, string> = {
 	alwaysSign: 'pgp.pref.alwaysSign',
 	alwaysEncrypt: 'pgp.pref.alwaysEncrypt',
 	autoDecrypt: 'pgp.pref.autoDecrypt',
-	wildcard: 'pgp.pref.wildcard'
+	wildcard: 'pgp.pref.wildcard',
+	rfc3156Sign: 'pgp.pref.rfc3156Sign'
 };
 
 export const getPgpPrefs = (): PgpPrefs => {
@@ -31,9 +37,16 @@ export const getPgpPrefs = (): PgpPrefs => {
 			alwaysSign: localStorage.getItem(PGP_PREF_KEYS.alwaysSign) === 'true',
 			alwaysEncrypt: localStorage.getItem(PGP_PREF_KEYS.alwaysEncrypt) === 'true',
 			autoDecrypt: localStorage.getItem(PGP_PREF_KEYS.autoDecrypt) === 'true',
-			wildcard: localStorage.getItem(PGP_PREF_KEYS.wildcard) === 'true'
+			wildcard: localStorage.getItem(PGP_PREF_KEYS.wildcard) === 'true',
+			rfc3156Sign: localStorage.getItem(PGP_PREF_KEYS.rfc3156Sign) !== 'false'
 		};
 	} catch {
-		return { alwaysSign: false, alwaysEncrypt: false, autoDecrypt: false, wildcard: false };
+		return {
+			alwaysSign: false,
+			alwaysEncrypt: false,
+			autoDecrypt: false,
+			wildcard: false,
+			rfc3156Sign: true
+		};
 	}
 };

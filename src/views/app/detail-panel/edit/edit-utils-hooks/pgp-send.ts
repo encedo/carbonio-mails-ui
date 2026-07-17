@@ -12,8 +12,8 @@
  * Encrypt:    RFC 3156 multipart/encrypted (signed+encrypted via HSM).
  */
 
-import { SoapEmailMessagePartObj } from 'types/soap/save-draft';
 import { pgpCall } from '../../../../../commons/pgp-bridge';
+import { SoapEmailMessagePartObj } from 'types/soap/save-draft';
 
 export type PgpSendParams = {
 	senderEmail: string;
@@ -23,7 +23,12 @@ export type PgpSendParams = {
 	// Standard attachments, encrypted inside the PGP message (encrypt path only).
 	attachments?: Array<{ filename: string; contentType: string; base64: string }>;
 	// Inline images (cid:) embedded in a multipart/related inside the encrypted body.
-	inlineImages?: Array<{ filename: string; contentType: string; base64: string; contentId: string }>;
+	inlineImages?: Array<{
+		filename: string;
+		contentType: string;
+		base64: string;
+		contentId: string;
+	}>;
 };
 
 function randomBoundary(): string {
@@ -51,8 +56,8 @@ export async function buildSignedMp(params: PgpSendParams): Promise<SoapEmailMes
 		{
 			ct: 'text/plain',
 			body: true,
-			content: { _content: signedPlain },
-		},
+			content: { _content: signedPlain }
+		}
 	];
 }
 
@@ -74,15 +79,64 @@ export async function buildEncryptedMp(params: PgpSendParams): Promise<SoapEmail
 			mp: [
 				{
 					ct: 'application/pgp-encrypted',
-					content: { _content: 'Version: 1\n' },
+					content: { _content: 'Version: 1\n' }
 				},
 				{
 					ct: 'application/octet-stream',
 					cd: 'attachment',
 					filename: 'encrypted.asc',
-					content: { _content: armoredMessage },
-				},
-			],
-		},
+					content: { _content: armoredMessage }
+				}
+			]
+		}
 	];
+}
+
+export type PgpSignedEmlParams = {
+	senderEmail: string;
+	senderName?: string;
+	to: Array<{ email: string; name?: string }>;
+	cc?: Array<{ email: string; name?: string }>;
+	subject: string;
+	plainText: string;
+	richText: string;
+	attachments?: Array<{ filename: string; contentType: string; base64: string }>;
+	inlineImages?: Array<{
+		filename: string;
+		contentType: string;
+		base64: string;
+		contentId: string;
+	}>;
+};
+
+/**
+ * Build a full RFC 3156 multipart/signed message (raw .eml) via carbonio-pgp-ui, which
+ * signs it with the HSM. The returned bytes are uploaded and sent verbatim — see
+ * uploadRawMime + the editor-transformations aid path.
+ */
+export async function buildSignedEml(params: PgpSignedEmlParams): Promise<string> {
+	return pgpCall('__encedoPgpBuildSignedEml', params);
+}
+
+/**
+ * Upload a raw RFC822 message to Carbonio's FileUploadServlet and return its upload id (aid).
+ * The session cookie authenticates the request (same origin). SendMsg then delivers the
+ * uploaded bytes byte-exact via <m aid="…"/>.
+ */
+export async function uploadRawMime(eml: string): Promise<string> {
+	const res = await fetch('/service/upload?fmt=raw,extended', {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'message/rfc822',
+			'Content-Disposition': 'attachment; filename="message.eml"'
+		},
+		body: eml,
+		credentials: 'same-origin'
+	});
+	if (!res.ok) throw new Error(`raw upload failed: HTTP ${res.status}`);
+	// Response body is Zimbra's callback form: 200,'null',[{"aid":"…","ct":"message/rfc822",…}]
+	const text = await res.text();
+	const m = text.match(/"aid"\s*:\s*"([^"]+)"/);
+	if (!m) throw new Error(`raw upload: no aid in response (${text.slice(0, 120)})`);
+	return m[1];
 }
