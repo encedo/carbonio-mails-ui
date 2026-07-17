@@ -36,6 +36,13 @@ import {
 	SoapPartialIncompleteMessage
 } from 'views/sidebar/commons/types';
 
+// Recursively test whether any MIME part (at any nesting depth) matches a predicate.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function hasPartDeep(parts: any, pred: (p: any) => boolean): boolean {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	return Array.isArray(parts) && parts.some((p: any) => pred(p) || hasPartDeep(p?.mp, pred));
+}
+
 type Flags = {
 	read: boolean;
 	hasAttachment: boolean;
@@ -429,11 +436,13 @@ const createBaseNormalizedMessage = (
 		? !!find(m.mp, (part) => part.ct?.startsWith('multipart/encrypted') && part.ct?.includes('pgp-encrypted'))
 		: undefined,
 	isPgpSigned: m.mp
-		? !!find(m.mp, (part) =>
-			// RFC 3156 detached signature (multipart/signed; protocol="application/pgp-signature")
-			(part.ct?.startsWith('multipart/signed') && part.ct?.includes('pgp-signature')) ||
+		? (
+			// RFC 3156 detached signature — detect the application/pgp-signature part anywhere in
+			// the tree (Carbonio's SOAP strips the protocol= param from the parent multipart/signed
+			// content-type, so we can't rely on it there).
+			hasPartDeep(m.mp, (part) => part.ct === 'application/pgp-signature') ||
 			// Inline cleartext (legacy PGP SIGNED MESSAGE block in text/plain)
-			(part.ct === 'text/plain' && part.body && (part.content as string | undefined)?.includes('-----BEGIN PGP SIGNED MESSAGE-----'))
+			hasPartDeep(m.mp, (part) => part.ct === 'text/plain' && !!part.body && (part.content as string | undefined)?.includes('-----BEGIN PGP SIGNED MESSAGE-----') === true)
 		  )
 		: undefined
 });

@@ -91,20 +91,18 @@ function findInlineSigned(message: MailMessage): string | null {
 	return null;
 }
 
-/** Find RFC 3156 detached signature part number (application/pgp-signature). */
-function findPgpSignaturePartNumber(message: MailMessage): { bodyPart: string; sigPart: string } | null {
-	for (const part of (message.parts ?? []) as any[]) {
-		const ct = part.contentType ?? part.ct ?? '';
-		if (ct.startsWith('multipart/signed') && ct.includes('pgp-signature')) {
-			const subs = part.parts ?? [];
-			const bodyPart = subs.find((s: any) => !(s.contentType ?? s.ct ?? '').includes('pgp-signature'));
-			const sigPart  = subs.find((s: any) =>  (s.contentType ?? s.ct ?? '').includes('pgp-signature'));
-			if (bodyPart && sigPart) {
-				return { bodyPart: bodyPart.name ?? bodyPart.part, sigPart: sigPart.name ?? sigPart.part };
-			}
-		}
-	}
-	return null;
+/**
+ * True if the message carries an RFC 3156 detached PGP signature. Detect the
+ * application/pgp-signature part anywhere in the tree — Carbonio's SOAP strips the
+ * protocol= param from the parent multipart/signed content-type, so we can't rely on it.
+ */
+function hasDetachedSignature(message: MailMessage): boolean {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	const isSig = (p: any): boolean => (p?.contentType ?? p?.ct ?? '') === 'application/pgp-signature';
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	const walk = (parts: any): boolean => Array.isArray(parts) && parts.some((p: any) => isSig(p) || walk(p?.parts ?? p?.mp));
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	return walk(message.parts) || ((message.attachments as any[] | undefined) ?? []).some(isSig);
 }
 
 export const PgpMessageView = ({ message }: PgpMessageViewProps): React.JSX.Element => {
@@ -124,8 +122,7 @@ export const PgpMessageView = ({ message }: PgpMessageViewProps): React.JSX.Elem
 				armoredOrSigned = await fetchArmoredMessage(message.id, partNum);
 			} else if (message.isPgpSigned) {
 				mode = 'sign';
-				const rfc3156 = findPgpSignaturePartNumber(message);
-				if (rfc3156) {
+				if (hasDetachedSignature(message)) {
 					// RFC 3156 detached signature (e.g. Thunderbird): verify over the byte-exact
 					// signed part taken from the raw message — no HSM needed.
 					const raw = await fetchRawMessage(message.id);
