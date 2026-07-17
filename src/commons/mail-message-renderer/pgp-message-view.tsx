@@ -46,6 +46,44 @@ async function fetchArmoredMessage(msgId: string, partNum: string): Promise<stri
 	return res.text();
 }
 
+/** Fetch the raw MIME of a message (byte-exact, as received) for detached-signature verify. */
+async function fetchRawMessage(msgId: string): Promise<string> {
+	const url = `/service/home/~/?auth=co&id=${encodeURIComponent(msgId)}&fmt=raw`;
+	const res = await fetch(url);
+	if (!res.ok) throw new Error(`Failed to fetch raw message: HTTP ${res.status}`);
+	const buf = new Uint8Array(await res.arrayBuffer());
+	let s = '';
+	const chunk = 0x8000;
+	for (let i = 0; i < buf.length; i += chunk) s += String.fromCharCode(...buf.subarray(i, i + chunk));
+	return s; // latin1 — each char is exactly one byte
+}
+
+/**
+ * Extract, from a raw RFC 3156 multipart/signed message, the byte-exact signed part
+ * (base64) and the armored detached signature. The signature covers the first body part's
+ * canonical MIME (headers + body); the CRLF immediately before the boundary belongs to the
+ * boundary, not the signed data.
+ */
+function extractDetachedSigned(raw: string): { signedB64: string; sig: string } | null {
+	const m = raw.match(/multipart\/signed[^]*?boundary="?([^";\r\n]+)"?/i);
+	if (!m) return null;
+	const delim = `--${m[1].trim()}`;
+	const first = raw.indexOf(delim);
+	if (first < 0) return null;
+	const partStart = raw.indexOf('\n', first) + 1; // after the opening boundary line
+	const secondIdx = raw.indexOf(`\n${delim}`, partStart);
+	if (secondIdx < 0) return null;
+	let end = secondIdx; // at '\n' of "\n--B"
+	if (raw[end] === '\n') end--;
+	if (raw[end] === '\r') end--; // strip the CRLF that belongs to the boundary
+	const signed = raw.slice(partStart, end + 1);
+	const sStart = raw.indexOf('-----BEGIN PGP SIGNATURE-----', secondIdx);
+	const END = '-----END PGP SIGNATURE-----';
+	const sEnd = raw.indexOf(END, sStart);
+	if (sStart < 0 || sEnd < 0) return null;
+	return { signedB64: btoa(signed), sig: raw.slice(sStart, sEnd + END.length) };
+}
+
 /** Find inline PGP cleartext in text/plain body. */
 function findInlineSigned(message: MailMessage): string | null {
 	const plain = message.body?.contentType === 'text/plain' ? message.body.content : null;
@@ -86,18 +124,24 @@ export const PgpMessageView = ({ message }: PgpMessageViewProps): React.JSX.Elem
 				armoredOrSigned = await fetchArmoredMessage(message.id, partNum);
 			} else if (message.isPgpSigned) {
 				mode = 'sign';
-				// RFC 3156 detached signature — fetch and reassemble as inline cleartext
 				const rfc3156 = findPgpSignaturePartNumber(message);
 				if (rfc3156) {
-					const [body, sig] = await Promise.all([
-						fetchArmoredMessage(message.id, rfc3156.bodyPart),
-						fetchArmoredMessage(message.id, rfc3156.sigPart),
-					]);
-					// Wrap into PGP SIGNED MESSAGE format that __encedoPgpDecrypt understands
-					armoredOrSigned = `-----BEGIN PGP SIGNED MESSAGE-----\nHash: SHA256\n\n${body}\n${sig}`;
-				} else {
-					armoredOrSigned = findInlineSigned(message);
+					// RFC 3156 detached signature (e.g. Thunderbird): verify over the byte-exact
+					// signed part taken from the raw message — no HSM needed.
+					const raw = await fetchRawMessage(message.id);
+					const extracted = extractDetachedSigned(raw);
+					if (!extracted) throw new Error('Could not extract the signed part from the message');
+					const senderEmail = message.participants?.find((p) => p.type === 'f')?.address;
+					const result: { html: string; signerEmail: string | null; valid: boolean | null } =
+						await pgpCall('__encedoPgpVerifyDetached', {
+							signedB64: extracted.signedB64,
+							armoredSignature: extracted.sig,
+							senderEmail,
+						});
+					setStatus({ state: 'done', html: result.html, signerEmail: result.signerEmail, sigValid: result.valid });
+					return;
 				}
+				armoredOrSigned = findInlineSigned(message);
 			}
 
 			if (!armoredOrSigned) throw new Error('Could not find PGP payload in message parts');
