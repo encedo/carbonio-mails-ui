@@ -6,10 +6,21 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Button, Container, Row, Text } from '@zextras/carbonio-design-system';
+import DOMPurify from 'dompurify';
 
-import { MailMessage } from 'types/messages';
 import { pgpCall } from '../pgp-bridge';
 import { getPgpPrefs } from '../pgp-prefs';
+import { MailMessage } from 'types/messages';
+
+// Decrypted PGP content never passes through Carbonio's server-side HTML filter, so it must
+// be sanitised client-side before it reaches innerHTML — otherwise a crafted encrypted mail
+// (e.g. <img src=x onerror=…>) runs script in the webmail origin. Keep inline images
+// (data:image/…) but drop scripts, event handlers, javascript: and data:text/html.
+const PGP_ALLOWED_URI =
+	/^(?:(?:https?|mailto|tel|cid):|data:image\/|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i;
+function sanitizePgpHtml(html: string): string {
+	return DOMPurify.sanitize(html, { ALLOWED_URI_REGEXP: PGP_ALLOWED_URI });
+}
 
 type PgpStatus =
 	| { state: 'idle' }
@@ -26,7 +37,10 @@ type PgpMessageViewProps = { message: MailMessage };
  */
 function findPgpPartNumber(message: MailMessage): string | null {
 	for (const part of (message.parts ?? []) as any[]) {
-		if (part.contentType?.startsWith('multipart/encrypted') || part.ct?.startsWith('multipart/encrypted')) {
+		if (
+			part.contentType?.startsWith('multipart/encrypted') ||
+			part.ct?.startsWith('multipart/encrypted')
+		) {
 			for (const sub of part.parts ?? []) {
 				const ct = sub.contentType ?? sub.ct ?? '';
 				if ((ct === 'application/octet-stream' || ct === 'text/plain') && (sub.name || sub.part)) {
@@ -54,7 +68,8 @@ async function fetchRawMessage(msgId: string): Promise<string> {
 	const buf = new Uint8Array(await res.arrayBuffer());
 	let s = '';
 	const chunk = 0x8000;
-	for (let i = 0; i < buf.length; i += chunk) s += String.fromCharCode(...buf.subarray(i, i + chunk));
+	for (let i = 0; i < buf.length; i += chunk)
+		s += String.fromCharCode(...buf.subarray(i, i + chunk));
 	return s; // latin1 — each char is exactly one byte
 }
 
@@ -98,9 +113,11 @@ function findInlineSigned(message: MailMessage): string | null {
  */
 function hasDetachedSignature(message: MailMessage): boolean {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	const isSig = (p: any): boolean => (p?.contentType ?? p?.ct ?? '') === 'application/pgp-signature';
+	const isSig = (p: any): boolean =>
+		(p?.contentType ?? p?.ct ?? '') === 'application/pgp-signature';
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	const walk = (parts: any): boolean => Array.isArray(parts) && parts.some((p: any) => isSig(p) || walk(p?.parts ?? p?.mp));
+	const walk = (parts: any): boolean =>
+		Array.isArray(parts) && parts.some((p: any) => isSig(p) || walk(p?.parts ?? p?.mp));
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	return walk(message.parts) || ((message.attachments as any[] | undefined) ?? []).some(isSig);
 }
@@ -133,9 +150,14 @@ export const PgpMessageView = ({ message }: PgpMessageViewProps): React.JSX.Elem
 						await pgpCall('__encedoPgpVerifyDetached', {
 							signedB64: extracted.signedB64,
 							armoredSignature: extracted.sig,
-							senderEmail,
+							senderEmail
 						});
-					setStatus({ state: 'done', html: result.html, signerEmail: result.signerEmail, sigValid: result.valid });
+					setStatus({
+						state: 'done',
+						html: result.html,
+						signerEmail: result.signerEmail,
+						sigValid: result.valid
+					});
 					return;
 				}
 				armoredOrSigned = findInlineSigned(message);
@@ -143,11 +165,16 @@ export const PgpMessageView = ({ message }: PgpMessageViewProps): React.JSX.Elem
 
 			if (!armoredOrSigned) throw new Error('Could not find PGP payload in message parts');
 
-			const senderEmail = message.participants?.find(p => p.type === 'f')?.address;
-			const recipientEmail = message.participants?.find(p => p.type === 't')?.address;
+			const senderEmail = message.participants?.find((p) => p.type === 'f')?.address;
+			const recipientEmail = message.participants?.find((p) => p.type === 't')?.address;
 
 			const result: { html: string; signerEmail: string | null; sigValid: boolean | null } =
-				await pgpCall('__encedoPgpDecrypt', { armored: armoredOrSigned, mode, senderEmail, recipientEmail });
+				await pgpCall('__encedoPgpDecrypt', {
+					armored: armoredOrSigned,
+					mode,
+					senderEmail,
+					recipientEmail
+				});
 
 			setStatus({ state: 'done', ...result });
 		} catch (e) {
@@ -157,7 +184,9 @@ export const PgpMessageView = ({ message }: PgpMessageViewProps): React.JSX.Elem
 			const requestUnlock = (window as any).__encedoPgpRequestUnlock;
 			if (msg.includes('HSM not connected') && requestUnlock) {
 				setStatus({ state: 'idle' });
-				requestUnlock(() => { decrypt(); });
+				requestUnlock(() => {
+					decrypt();
+				});
 			} else {
 				setStatus({ state: 'error', message: msg });
 			}
@@ -225,10 +254,10 @@ export const PgpMessageView = ({ message }: PgpMessageViewProps): React.JSX.Elem
 		decrypt();
 	}, [message.id, message.isPgpSigned, message.isPgpEncrypted, status.state, decrypt]);
 
-	// Render decrypted HTML into shadow DOM wrapper
+	// Render decrypted HTML — sanitised (see sanitizePgpHtml) since it bypasses the server filter.
 	useEffect(() => {
 		if (status.state === 'done' && decryptedRef.current) {
-			decryptedRef.current.innerHTML = status.html;
+			decryptedRef.current.innerHTML = sanitizePgpHtml(status.html);
 		}
 	}, [status]);
 
@@ -265,7 +294,12 @@ export const PgpMessageView = ({ message }: PgpMessageViewProps): React.JSX.Elem
 				gap="8px"
 				mainAlignment="flex-start"
 				padding={{ all: 'small' }}
-				style={{ background: bannerBg, borderRadius: 6, width: '100%', border: '1px solid rgba(0,0,0,0.08)' }}
+				style={{
+					background: bannerBg,
+					borderRadius: 6,
+					width: '100%',
+					border: '1px solid rgba(0,0,0,0.08)'
+				}}
 			>
 				{message.isPgpEncrypted && (
 					<Text size="small" style={{ fontWeight: 600 }}>
@@ -310,7 +344,7 @@ export const PgpMessageView = ({ message }: PgpMessageViewProps): React.JSX.Elem
 						borderRadius: 6,
 						padding: '12px 16px',
 						background: '#ffffff',
-						boxSizing: 'border-box',
+						boxSizing: 'border-box'
 					}}
 				>
 					<div ref={decryptedRef} />
