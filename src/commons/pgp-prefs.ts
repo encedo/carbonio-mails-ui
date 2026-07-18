@@ -21,6 +21,8 @@ export type PgpPrefs = {
 	 * of inline cleartext. ON by default (richer: keeps HTML, proper PGP/MIME signature).
 	 */
 	rfc3156Sign: boolean;
+	/** Encrypt the Subject via protected headers (outer subject = placeholder). OFF by default. */
+	encryptSubject: boolean;
 };
 
 const PGP_PREF_KEYS: Record<keyof PgpPrefs, string> = {
@@ -28,7 +30,8 @@ const PGP_PREF_KEYS: Record<keyof PgpPrefs, string> = {
 	alwaysEncrypt: 'pgp.pref.alwaysEncrypt',
 	autoDecrypt: 'pgp.pref.autoDecrypt',
 	wildcard: 'pgp.pref.wildcard',
-	rfc3156Sign: 'pgp.pref.rfc3156Sign'
+	rfc3156Sign: 'pgp.pref.rfc3156Sign',
+	encryptSubject: 'pgp.pref.encryptSubject'
 };
 
 export const getPgpPrefs = (): PgpPrefs => {
@@ -38,7 +41,8 @@ export const getPgpPrefs = (): PgpPrefs => {
 			alwaysEncrypt: localStorage.getItem(PGP_PREF_KEYS.alwaysEncrypt) === 'true',
 			autoDecrypt: localStorage.getItem(PGP_PREF_KEYS.autoDecrypt) === 'true',
 			wildcard: localStorage.getItem(PGP_PREF_KEYS.wildcard) === 'true',
-			rfc3156Sign: localStorage.getItem(PGP_PREF_KEYS.rfc3156Sign) !== 'false'
+			rfc3156Sign: localStorage.getItem(PGP_PREF_KEYS.rfc3156Sign) !== 'false',
+			encryptSubject: localStorage.getItem(PGP_PREF_KEYS.encryptSubject) === 'true'
 		};
 	} catch {
 		return {
@@ -46,7 +50,8 @@ export const getPgpPrefs = (): PgpPrefs => {
 			alwaysEncrypt: false,
 			autoDecrypt: false,
 			wildcard: false,
-			rfc3156Sign: true
+			rfc3156Sign: true,
+			encryptSubject: false
 		};
 	}
 };

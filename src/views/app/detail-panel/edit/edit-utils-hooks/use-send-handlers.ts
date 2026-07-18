@@ -297,13 +297,18 @@ export const useSendHandlers = (
 					}
 				}
 
+				// Subject encryption (protected headers) applies only to encrypted mail: pass the
+				// real subject to be embedded inside the ciphertext; the outer subject becomes a
+				// placeholder (set on the editor below so editor-transformations emits it in `su`).
+				const encryptSubject = !!editor.isPgpEncrypt && getPgpPrefs().encryptSubject && !!editor.subject;
 				const pgpParams = {
 					senderEmail,
 					recipientEmails,
 					plainText,
 					richText,
 					attachments: pgpAttachments,
-					inlineImages: pgpInlineImages
+					inlineImages: pgpInlineImages,
+					...(encryptSubject ? { subject: editor.subject } : {})
 				};
 
 				try {
@@ -341,7 +346,15 @@ export const useSendHandlers = (
 						const overrideMp = editor.isPgpEncrypt
 							? await buildEncryptedMp(pgpParams)
 							: await buildSignedMp(pgpParams);
-						addEditor({ id: editorId, editor: { ...editor, pgpOverrideMp: overrideMp } });
+						addEditor({
+							id: editorId,
+							editor: {
+								...editor,
+								pgpOverrideMp: overrideMp,
+								// Placeholder outer subject when the real one is encrypted inside.
+								...(encryptSubject ? { pgpOuterSubject: '...' } : {})
+							}
+						});
 					}
 					// Bytes are now folded into the outgoing message — release the retained Files.
 					pgpFileUploadIds.forEach(clearPgpAttachmentFile);

@@ -417,7 +417,7 @@ const createSoapMessageRequestFromEditor = (
 		autoSendTime: editor.autoSendTime,
 		...(command === 'savedraft' ? { id: editor.did } : {}),
 		...(command === 'sendmsg' ? { did: editor.did } : {}),
-		su: { _content: editor.subject ?? '' },
+		su: { _content: editor.pgpOuterSubject ?? editor.subject ?? '' },
 		rt: editor.replyType,
 		...(editor.originalId ? { origid: getCompleteMessageId(editor.originalId) } : {}),
 		e: soapParticipants,

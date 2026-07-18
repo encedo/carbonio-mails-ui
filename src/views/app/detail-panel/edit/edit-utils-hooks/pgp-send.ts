@@ -29,6 +29,8 @@ export type PgpSendParams = {
 		base64: string;
 		contentId: string;
 	}>;
+	// When set, the subject is carried as an encrypted protected header (memory hole).
+	subject?: string;
 };
 
 function randomBoundary(): string {
