@@ -34,6 +34,10 @@ jobs:
         working-directory: carbonio-mails-ui
         run: pnpm install --frozen-lockfile
 
+      - name: Type check
+        working-directory: carbonio-mails-ui
+        run: pnpm run type-check
+
       - name: Build
         working-directory: carbonio-mails-ui
         run: pnpm run build
@@ -41,10 +45,22 @@ jobs:
       - name: Build .deb
         id: deb
         run: |
+          set -euo pipefail
+
           PKG_NAME="carbonio-mails-ui"
           PKG_VERSION=$(node -p "require('./carbonio-mails-ui/package.json').version")
           PKG_REL="1+HEM${{ github.run_number }}"
-          COMMIT="${{ github.sha }}"
+
+          # The commit must come from the build output, not from github.sha: webpack
+          # bakes it into component.json's js_entrypoint (/static/iris/<pkg>/<commit>/),
+          # so the install directory has to match it exactly or the shell loads nothing.
+          COMMIT=$(node -p "require('./carbonio-mails-ui/dist/component.json').commit")
+          if [ -z "${COMMIT}" ] || [ "${COMMIT}" = "undefined" ]; then
+            echo "ERROR: no commit in dist/component.json" >&2
+            exit 1
+          fi
+          echo "Packaging ${PKG_NAME} ${PKG_VERSION} at commit ${COMMIT}"
+
           INSTALL_DIR="/opt/zextras/web/iris/${PKG_NAME}/${COMMIT}"
 
           DEB_ROOT="$(pwd)/deb-root"
@@ -56,7 +72,7 @@ jobs:
           cat > "${DEB_ROOT}/DEBIAN/control" <<EOF
           Package: ${PKG_NAME}
           Version: ${PKG_VERSION}-${PKG_REL}
-          Architecture: amd64
+          Architecture: all
           Maintainer: Encedo <packages@encedo.com>
           Section: admin
           Priority: optional
@@ -64,25 +80,55 @@ jobs:
           Description: Carbonio Mails UI with OpenPGP support (Encedo HEM fork)
           EOF
 
-          cat > "${DEB_ROOT}/DEBIAN/postinst" <<'EOF'
+          # Header carries the build-time identity; the body below is literal.
+          cat > "${DEB_ROOT}/DEBIAN/postinst" <<EOF
           #!/bin/bash
-          set -e
-          PKG_NAME="carbonio-mails-ui"
-          COMMIT_DIR=$(ls /opt/zextras/web/iris/${PKG_NAME}/ | grep -v current | head -1)
-          mkdir -p "/opt/zextras/web/iris/${PKG_NAME}/current"
-          cd "/opt/zextras/web/iris/${PKG_NAME}/${COMMIT_DIR}"
-          find . -name "*.html" -exec cp --parents "{}" /opt/zextras/web/iris/${PKG_NAME}/current/ \;
-          find /opt/zextras/web/iris/ \
-            -maxdepth 3 -mindepth 3 -type f -name component.json \
-            -printf '%T@ %p\n' \
-            | sort -rn \
-            | awk '{n=split($2,path,"/"); c=path[6]; if(!seen[c]++) print $2}' \
-            | xargs jq -s '{"components":.}' >/opt/zextras/web/iris/components.json
+          set -euo pipefail
+          PKG_NAME="${PKG_NAME}"
+          COMMIT="${COMMIT}"
+          EOF
+
+          cat >> "${DEB_ROOT}/DEBIAN/postinst" <<'EOF'
+          IRIS="/opt/zextras/web/iris"
+          PKG_DIR="${IRIS}/${PKG_NAME}"
+          COMMIT_DIR="${PKG_DIR}/${COMMIT}"
+
+          if [ ! -f "${COMMIT_DIR}/component.json" ]; then
+            echo "ERROR: ${COMMIT_DIR}/component.json missing" >&2
+            exit 1
+          fi
+
+          # Serve the entry HTML from current/
+          mkdir -p "${PKG_DIR}/current"
+          cd "${COMMIT_DIR}"
+          find . -name "*.html" -exec cp --parents "{}" "${PKG_DIR}/current/" \;
+
+          # Register this build in components.json, replacing only our own entry.
+          # A full filesystem rescan would rewrite entries owned by other components.
+          COMPONENTS="${IRIS}/components.json"
+          TMP=$(mktemp)
+          if [ -f "${COMPONENTS}" ]; then
+            jq --slurpfile new "${COMMIT_DIR}/component.json" \
+              '.components = ((.components // []) | map(select(.name != $new[0].name)) + [$new[0]])' \
+              "${COMPONENTS}" > "${TMP}"
+          else
+            jq -s '{"components":.}' "${COMMIT_DIR}/component.json" > "${TMP}"
+          fi
+          mv "${TMP}" "${COMPONENTS}"
+
+          # Drop superseded builds of this package so they cannot be activated by mistake
+          find "${PKG_DIR}" -mindepth 1 -maxdepth 1 -type d \
+            ! -name current ! -name "${COMMIT}" -exec rm -rf {} +
+
+          chown -R zextras:zextras "${PKG_DIR}" 2>/dev/null || true
+          chown zextras:zextras "${COMPONENTS}" 2>/dev/null || true
           EOF
           chmod 755 "${DEB_ROOT}/DEBIAN/postinst"
 
-          DEB_FILE="${PKG_NAME}_${PKG_VERSION}-${PKG_REL}_amd64.deb"
-          dpkg-deb --build "${DEB_ROOT}" "${DEB_FILE}"
+          # --root-owner-group: without it the payload is owned by the runner's
+          # uid/gid (1000) instead of root.
+          DEB_FILE="${PKG_NAME}_${PKG_VERSION}-${PKG_REL}_all.deb"
+          dpkg-deb --root-owner-group --build "${DEB_ROOT}" "${DEB_FILE}"
 
           echo "deb_file=${DEB_FILE}" >> $GITHUB_OUTPUT
           echo "version=${PKG_VERSION}-${PKG_REL}" >> $GITHUB_OUTPUT
