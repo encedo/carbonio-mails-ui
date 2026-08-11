@@ -23,7 +23,7 @@ import {
 } from 'store/editor/editor-utils';
 import { getEditor } from 'store/editor/hooks/editors';
 import { SaveDraftOptions, useSaveDraftFromEditor } from 'store/editor/hooks/save-draft';
-import { computeAndUpdateEditorStatus, useEditorSetDirty } from 'store/editor/hooks/statuses';
+import { useEditorSetDirty } from 'store/editor/hooks/statuses';
 import { stashPgpAttachmentFile, clearPgpAttachmentFile } from 'commons/pgp-attachment-cache';
 import { useEditorsStore } from 'store/editor/store';
 import { AttachmentUploadProcessStatus, UnsavedAttachment } from 'types/attachments';
@@ -128,14 +128,12 @@ export const useEditorAttachments = (editorId: MailsEditorV2['id']): EditorAttac
 				};
 				notifyUploadError(file);
 				setUploadStatus(editorId, uploadId, status);
-				computeAndUpdateEditorStatus(editorId);
 				callbacks?.onUploadError && callbacks.onUploadError(file, uploadId, error);
 			},
 
 			onUploadComplete: (file: File, uploadId: string, attachmentId: string): void => {
 				const setUploadCompleted = useEditorsStore.getState().setAttachmentUploadCompleted;
 				setUploadCompleted(editorId, uploadId, attachmentId);
-				computeAndUpdateEditorStatus(editorId);
 				callbacks?.onUploadComplete && callbacks.onUploadComplete(file, uploadId, attachmentId);
 			},
 
@@ -169,7 +167,6 @@ export const useEditorAttachments = (editorId: MailsEditorV2['id']): EditorAttac
 			}
 		);
 		addUnsavedAttachments(editorId, unsavedAttachments);
-		computeAndUpdateEditorStatus(editorId);
 
 		return unsavedAttachments;
 	};
@@ -242,7 +239,6 @@ export const useEditorAttachments = (editorId: MailsEditorV2['id']): EditorAttac
 			}
 		} satisfies UnsavedAttachment;
 		addUnsavedAttachments(editorId, [unsavedAttachment]);
-		computeAndUpdateEditorStatus(editorId);
 		setDirty();
 		debouncedSaveDraft();
 
@@ -319,7 +315,6 @@ export const useEditorAttachments = (editorId: MailsEditorV2['id']): EditorAttac
 				}
 			}
 		});
-		computeAndUpdateEditorStatus(editorId);
 	};
 	return {
 		hasStandardAttachments: unsavedStandardAttachments.length + savedStandardAttachments.length > 0,
@@ -328,20 +323,17 @@ export const useEditorAttachments = (editorId: MailsEditorV2['id']): EditorAttac
 		removeUnsavedAttachment: (uploadId: string): void => {
 			clearPgpAttachmentFile(uploadId); // release the retained File for a removed attachment
 			removeUnsavedAttachmentsInvoker(editorId, uploadId);
-			computeAndUpdateEditorStatus(editorId);
 			setDirty();
 			debouncedSaveDraft();
 		},
 
 		removeSavedAttachment: (partName: string): void => {
 			removeSavedAttachmentsInvoker(editorId, partName);
-			computeAndUpdateEditorStatus(editorId);
 			setDirty();
 			debouncedSaveDraft();
 		},
 		removeStandardAttachments: (): void => {
 			removeStandardAttachmentsInvoker(editorId);
-			computeAndUpdateEditorStatus(editorId);
 			setDirty();
 			debouncedSaveDraft();
 		},

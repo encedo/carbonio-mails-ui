@@ -1,3 +1,74 @@
+## <small>1.41.1 (2026-08-05)</small>
+
+* fix: remove legacy attribute zimbraFeatureMailEnabled (#1301) ([8eb5381](https://github.com/zextras/carbonio-mails-ui/commit/8eb5381)), closes [#1301](https://github.com/zextras/carbonio-mails-ui/issues/1301)
+
+## 1.41.0 (2026-08-04)
+
+* feat: implement dynamic draft save delay based on zimbraPrefAutoSaveDraftInterval ([c6e7ab3](https://github.com/zextras/carbonio-mails-ui/commit/c6e7ab3))
+
+## <small>1.40.5 (2026-08-03)</small>
+
+* refactor(CO-2942): move recipients check inside editor logic (#1294) ([2a5014f](https://github.com/zextras/carbonio-mails-ui/commit/2a5014f)), closes [#1294](https://github.com/zextras/carbonio-mails-ui/issues/1294)
+* chore(deps): update dependency zextras/jenkins-lib-common to v4.1.4 (#1300) ([ae7cae0](https://github.com/zextras/carbonio-mails-ui/commit/ae7cae0)), closes [#1300](https://github.com/zextras/carbonio-mails-ui/issues/1300)
+
+## <small>1.40.4 (2026-07-30)</small>
+
+* fix(deps): update dependency @types/webpack-env to v1.18.8 (#1260) ([32b31f0](https://github.com/zextras/carbonio-mails-ui/commit/32b31f0)), closes [#1260](https://github.com/zextras/carbonio-mails-ui/issues/1260)
+* chore(deps): update dependency msw to v2.15.0 (#1268) ([5d6ef13](https://github.com/zextras/carbonio-mails-ui/commit/5d6ef13)), closes [#1268](https://github.com/zextras/carbonio-mails-ui/issues/1268)
+
+## <small>1.40.3 (2026-07-28)</small>
+
+* refactor(editor): add rich text toolbar plugin tests and utility functions (#1298) ([cfea6a3](https://github.com/zextras/carbonio-mails-ui/commit/cfea6a3)), closes [#1298](https://github.com/zextras/carbonio-mails-ui/issues/1298)
+
+## <small>1.40.2 (2026-07-28)</small>
+
+* fix(CO-3925): invalid recipient error shows raw placeholder and only one address (#1296) ([b41949a](https://github.com/zextras/carbonio-mails-ui/commit/b41949a)), closes [#1296](https://github.com/zextras/carbonio-mails-ui/issues/1296)
+
+## <small>1.40.1 (2026-07-28)</small>
+
+* fix(deps): update dependency @types/webpack to v5.28.5 (#1259) ([75868ca](https://github.com/zextras/carbonio-mails-ui/commit/75868ca)), closes [#1259](https://github.com/zextras/carbonio-mails-ui/issues/1259)
+
+## 1.40.0 (2026-07-27)
+
+* fix: fix clear formatting functionality in RichToolbarPlugin (#1297) ([9dca596](https://github.com/zextras/carbonio-mails-ui/commit/9dca596)), closes [#1297](https://github.com/zextras/carbonio-mails-ui/issues/1297)
+* feat: add onSendStart callback to notify user when send request is initiated ([e075999](https://github.com/zextras/carbonio-mails-ui/commit/e075999))
+
+## <small>1.39.1 (2026-07-24)</small>
+
+* fix(CO-4023): copy paste table from excel does not keep the style and missing signature in settings  ([743183f](https://github.com/zextras/carbonio-mails-ui/commit/743183f)), closes [#1295](https://github.com/zextras/carbonio-mails-ui/issues/1295)
+
+## 1.39.0 (2026-07-24)
+
+* feat(CO-3998): show distribution list display name in RecipientsRow (#1293) ([36a5e34](https://github.com/zextras/carbonio-mails-ui/commit/36a5e34)), closes [#1293](https://github.com/zextras/carbonio-mails-ui/issues/1293)
+* chore(deps): update typescript (#1257) ([0c8d97d](https://github.com/zextras/carbonio-mails-ui/commit/0c8d97d)), closes [#1257](https://github.com/zextras/carbonio-mails-ui/issues/1257)
+
+## 1.38.0 (2026-07-21)
+
+* feat: update ui-commons + peer dependencies and test stability (#1292) ([337df92](https://github.com/zextras/carbonio-mails-ui/commit/337df92)), closes [#1292](https://github.com/zextras/carbonio-mails-ui/issues/1292)
+
+## <small>1.37.3 (2026-07-21)</small>
+
+* fix: color picker keep the current selction (#1291) ([ba82c61](https://github.com/zextras/carbonio-mails-ui/commit/ba82c61)), closes [#1291](https://github.com/zextras/carbonio-mails-ui/issues/1291)
+* chore(deps): update vitest to v4.1.10 (#1258) ([b1735fc](https://github.com/zextras/carbonio-mails-ui/commit/b1735fc)), closes [#1258](https://github.com/zextras/carbonio-mails-ui/issues/1258)
+
+## <small>1.37.2 (2026-07-20)</small>
+
+* fix(ci): cap vitest forks to 2 to prevent k8s CPU saturation (#1289) ([c9edf0b](https://github.com/zextras/carbonio-mails-ui/commit/c9edf0b)), closes [#1289](https://github.com/zextras/carbonio-mails-ui/issues/1289)
+
+## <small>1.37.1 (2026-07-20)</small>
+
+* fix: cursor keep the position when a new row or column is added (#1287) ([25f272b](https://github.com/zextras/carbonio-mails-ui/commit/25f272b)), closes [#1287](https://github.com/zextras/carbonio-mails-ui/issues/1287)
+* chore(deps): update dependency @types/react to v18.3.31 (#1251) ([49898b1](https://github.com/zextras/carbonio-mails-ui/commit/49898b1)), closes [#1251](https://github.com/zextras/carbonio-mails-ui/issues/1251)
+* chore(deps): update semantic-release monorepo (#1256) ([9969cdf](https://github.com/zextras/carbonio-mails-ui/commit/9969cdf)), closes [#1256](https://github.com/zextras/carbonio-mails-ui/issues/1256)
+
+## 1.37.0 (2026-07-17)
+
+* feat: Migrate mail composer from TinyMCE to Lexical editor (#1284) ([57b800b](https://github.com/zextras/carbonio-mails-ui/commit/57b800b)), closes [#1284](https://github.com/zextras/carbonio-mails-ui/issues/1284)
+* Merge branch 'devel' into import-export-translation-change ([6339148](https://github.com/zextras/carbonio-mails-ui/commit/6339148))
+* Merge pull request #1285 from zextras/import-export-translation-change ([f9ee19a](https://github.com/zextras/carbonio-mails-ui/commit/f9ee19a)), closes [#1285](https://github.com/zextras/carbonio-mails-ui/issues/1285)
+* chore: update import icon to use CalendarOutline for better clarity (#1286) ([ba4b46b](https://github.com/zextras/carbonio-mails-ui/commit/ba4b46b)), closes [#1286](https://github.com/zextras/carbonio-mails-ui/issues/1286)
+* fix: translation fallback change ([497302e](https://github.com/zextras/carbonio-mails-ui/commit/497302e))
+
 ## 1.36.0 (2026-07-08)
 
 * feat(CO-3675): add calendar attachment detection and import functionality (#1283) ([cb812e5](https://github.com/zextras/carbonio-mails-ui/commit/cb812e5)), closes [#1283](https://github.com/zextras/carbonio-mails-ui/issues/1283)

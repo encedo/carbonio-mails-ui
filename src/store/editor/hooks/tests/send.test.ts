@@ -8,7 +8,6 @@ import { ParticipantRole } from '@zextras/carbonio-ui-commons';
 
 import { generateNewMessageEditor } from '../../editor-generators';
 import { useEditorSend } from '../send';
-import { computeAndUpdateEditorStatus } from '../statuses';
 import { setupHook } from '@test-setup';
 import { createSoapAPIInterceptor } from '@test-utils/network/msw/create-api-interceptor';
 import { buildSoapErrorResponseBody } from '@test-utils/utils/soap';
@@ -17,6 +16,8 @@ import { setupEditorStore } from '__test__/generators/editor-store';
 import { useEditorsStore } from 'store/editor/store';
 import { MailsEditorV2 } from 'types/editor';
 
+const RECIPIENT_ADDRESS = 'text@demo.com';
+
 describe('send', () => {
 	it('should return an object with send and status', () => {
 		const editor = generateNewMessageEditor();
@@ -24,14 +25,13 @@ describe('send', () => {
 			...editor,
 			subject: 'title',
 			recipients: {
-				to: [{ type: ParticipantRole.TO, address: 'text@demo.com' }],
+				to: [{ type: ParticipantRole.TO, address: RECIPIENT_ADDRESS }],
 				cc: [],
 				bcc: []
 			}
 		};
 
 		setupEditorStore({ editors: [composedEditor] });
-		computeAndUpdateEditorStatus(composedEditor.id);
 
 		const { result } = setupHook(useEditorSend, {
 			initialProps: [composedEditor.id]
@@ -42,6 +42,33 @@ describe('send', () => {
 			send: expect.any(Function)
 		});
 	});
+	it('should not start the send when a recipient address is invalid', () => {
+		const addListenerSpy = vi.spyOn(window, 'addEventListener');
+
+		const editor = generateNewMessageEditor();
+		const composedEditor: MailsEditorV2 = {
+			...editor,
+			subject: 'title',
+			recipients: {
+				to: [{ type: ParticipantRole.TO, address: 'not-an-email' }],
+				cc: [],
+				bcc: []
+			}
+		};
+
+		setupEditorStore({ editors: [composedEditor] });
+
+		const { result } = setupHook(useEditorSend, {
+			initialProps: [composedEditor.id]
+		});
+
+		act(() => {
+			result.current.send();
+		});
+
+		expect(addListenerSpy).not.toHaveBeenCalledWith('beforeunload', expect.any(Function));
+		expect(useEditorsStore.getState().editors[composedEditor.id].sendProcessStatus).toBeUndefined();
+	});
 	it('should add beforeunload event listener when send is called', () => {
 		const addListenerSpy = vi.spyOn(window, 'addEventListener');
 
@@ -50,14 +77,13 @@ describe('send', () => {
 			...editor,
 			subject: 'title',
 			recipients: {
-				to: [{ type: ParticipantRole.TO, address: 'text@demo.com' }],
+				to: [{ type: ParticipantRole.TO, address: RECIPIENT_ADDRESS }],
 				cc: [],
 				bcc: []
 			}
 		};
 
 		setupEditorStore({ editors: [composedEditor] });
-		computeAndUpdateEditorStatus(composedEditor.id);
 
 		const { result } = setupHook(useEditorSend, {
 			initialProps: [composedEditor.id]
@@ -79,14 +105,13 @@ describe('send', () => {
 			...editor,
 			subject: 'title',
 			recipients: {
-				to: [{ type: ParticipantRole.TO, address: 'text@demo.com' }],
+				to: [{ type: ParticipantRole.TO, address: RECIPIENT_ADDRESS }],
 				cc: [],
 				bcc: []
 			}
 		};
 
 		setupEditorStore({ editors: [composedEditor] });
-		computeAndUpdateEditorStatus(composedEditor.id);
 
 		const { result } = setupHook(useEditorSend, {
 			initialProps: [composedEditor.id]
@@ -112,14 +137,13 @@ describe('send', () => {
 			...editor,
 			subject: 'title',
 			recipients: {
-				to: [{ type: ParticipantRole.TO, address: 'text@demo.com' }],
+				to: [{ type: ParticipantRole.TO, address: RECIPIENT_ADDRESS }],
 				cc: [],
 				bcc: []
 			}
 		};
 
 		setupEditorStore({ editors: [composedEditor] });
-		computeAndUpdateEditorStatus(composedEditor.id);
 
 		const { result } = setupHook(useEditorSend, {
 			initialProps: [composedEditor.id]
@@ -145,14 +169,13 @@ describe('send', () => {
 			...editor,
 			subject: 'title',
 			recipients: {
-				to: [{ type: ParticipantRole.TO, address: 'text@demo.com' }],
+				to: [{ type: ParticipantRole.TO, address: RECIPIENT_ADDRESS }],
 				cc: [],
 				bcc: []
 			}
 		};
 
 		setupEditorStore({ editors: [composedEditor] });
-		computeAndUpdateEditorStatus(composedEditor.id);
 
 		const { result } = setupHook(useEditorSend, {
 			initialProps: [composedEditor.id]
@@ -168,6 +191,80 @@ describe('send', () => {
 
 		expect(removeListenerSpy).toHaveBeenCalledWith('beforeunload', expect.any(Function));
 	});
+	it('should call onSendStart when the send request is issued to the server', async () => {
+		createSoapAPIInterceptor('SendMsg');
+
+		const editor = generateNewMessageEditor();
+		const composedEditor: MailsEditorV2 = {
+			...editor,
+			subject: 'title',
+			recipients: {
+				to: [{ type: ParticipantRole.TO, address: RECIPIENT_ADDRESS }],
+				cc: [],
+				bcc: []
+			}
+		};
+
+		setupEditorStore({ editors: [composedEditor] });
+
+		const onSendStart = vi.fn();
+		const onComplete = vi.fn();
+
+		const { result } = setupHook(useEditorSend, {
+			initialProps: [composedEditor.id]
+		});
+
+		act(() => {
+			result.current.send({ onSendStart, onComplete });
+		});
+
+		// During the countdown the request has not been issued yet
+		expect(onSendStart).not.toHaveBeenCalled();
+
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(5000);
+		});
+
+		expect(onSendStart).toHaveBeenCalledTimes(1);
+		expect(onComplete).toHaveBeenCalledTimes(1);
+	});
+	it('should not call onSendStart when the countdown is canceled before the request is issued', async () => {
+		createSoapAPIInterceptor('SendMsg');
+
+		const editor = generateNewMessageEditor();
+		const composedEditor: MailsEditorV2 = {
+			...editor,
+			subject: 'title',
+			recipients: {
+				to: [{ type: ParticipantRole.TO, address: RECIPIENT_ADDRESS }],
+				cc: [],
+				bcc: []
+			}
+		};
+
+		setupEditorStore({ editors: [composedEditor] });
+
+		const onSendStart = vi.fn();
+
+		const { result } = setupHook(useEditorSend, {
+			initialProps: [composedEditor.id]
+		});
+
+		let sendResult: ReturnType<typeof result.current.send> = {};
+		act(() => {
+			sendResult = result.current.send({ onSendStart });
+		});
+
+		act(() => {
+			sendResult.cancel?.();
+		});
+
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(5000);
+		});
+
+		expect(onSendStart).not.toHaveBeenCalled();
+	});
 	it('should delay SendMsg until a draft save started during the countdown completes', async () => {
 		const sendMsgCalled = createSoapAPIInterceptor('SendMsg');
 		let sendMsgHasBeenCalled = false;
@@ -180,14 +277,13 @@ describe('send', () => {
 			...editor,
 			subject: 'title',
 			recipients: {
-				to: [{ type: ParticipantRole.TO, address: 'text@demo.com' }],
+				to: [{ type: ParticipantRole.TO, address: RECIPIENT_ADDRESS }],
 				cc: [],
 				bcc: []
 			}
 		};
 
 		setupEditorStore({ editors: [composedEditor] });
-		computeAndUpdateEditorStatus(composedEditor.id);
 
 		const { result } = setupHook(useEditorSend, {
 			initialProps: [composedEditor.id]
@@ -197,9 +293,9 @@ describe('send', () => {
 			result.current.send();
 		});
 
-		// Simulate a draft save starting during the countdown (e.g. from a pending debounce)
-		// Set directly without computeAndUpdateEditorStatus so sendAllowedStatus stays 'allowed'
-		// (the countdown is already running; the status check at sendFromEditor start already passed)
+		// Simulate a draft save starting during the countdown (e.g. from a pending debounce).
+		// The send-allowed status is derived on read, but the countdown is already running and
+		// the status check at sendFromEditor start already passed, so the send is not blocked.
 		useEditorsStore.getState().setDraftSaveProcessStatus(composedEditor.id, { status: 'running' });
 
 		// Advance time past the countdown — send should now be waiting for the draft save
