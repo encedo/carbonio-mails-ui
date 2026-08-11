@@ -101,7 +101,10 @@ const SearchView = ({ useQuery, ResultsHeader }: SearchViewProps): React.JSX.Ele
 
 	const containsSpecialCharacter = useMemo(
 		() =>
-			query.some(
+			// Cast (as at the QueryChips usage below): carbonio-search-ui ships its types from a
+			// `prepare`-built lib/, which can install incomplete. skipLibCheck then silently turns
+			// its exports into `any`, leaving `ch` an implicit any and failing type-check in CI.
+			(query as Query).some(
 				(ch) =>
 					ch.value !== undefined &&
 					containsSpecialCharacters(ch.value) &&
