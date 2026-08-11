@@ -16,6 +16,7 @@ import {
 import { t, useIsCarbonioCE } from '@zextras/carbonio-shell-ui';
 import { filter, map, partition } from 'lodash';
 
+import { PgpButtons } from '../pgp/pgp-buttons';
 import DropZoneAttachment from './dropzone-attachment';
 import { EditAttachmentsBlock } from './edit-attachments-block';
 import { useFilesAttachmentOrSmartlink } from './edit-utils-hooks/use-files-attachment-or-smartlink';
@@ -355,6 +356,7 @@ export const EditView = React.forwardRef<EditViewHandle, EditViewProp>(function 
 							gap={'medium'}
 							padding={{ top: 'small', right: 'small' }}
 						>
+							<PgpButtons editorId={editorId} />
 							<MemoizedAddAttachmentsDropdown editorId={editorId} />
 							<MemoizedChangeSignaturesDropdown editorId={editorId} />
 							<MemoizedOptionsDropdown

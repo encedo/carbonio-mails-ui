@@ -16,6 +16,7 @@ import {
 import { t, useIsCarbonioCE } from '@zextras/carbonio-shell-ui';
 import { filter, map, partition, some } from 'lodash';
 
+import { PgpButtons } from '../pgp/pgp-buttons';
 import DropZoneAttachment from './dropzone-attachment';
 import { EditAttachmentsBlock } from './edit-attachments-block';
 import { useFilesAttachmentOrSmartlink } from './edit-utils-hooks/use-files-attachment-or-smartlink';
@@ -32,7 +33,6 @@ import { ChangeSignaturesDropdown } from './parts/change-signatures-dropdown';
 import { EditViewFooter } from './parts/edit-view-footer';
 import { EditViewIdentitySelector } from './parts/edit-view-identity-selector';
 import { EditViewSendButtons } from './parts/edit-view-send-buttons';
-import { PgpButtons } from './parts/pgp-buttons';
 import { OptionsDropdown } from './parts/options-dropdown';
 import { RecipientsRows } from './parts/recipients-rows';
 import { SubjectRow } from './parts/subject-row';

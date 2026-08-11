@@ -7,7 +7,7 @@ import React, { FC } from 'react';
 
 import { Button, Padding, Text, Tooltip } from '@zextras/carbonio-design-system';
 
-import { usePgpHandlers } from '../edit-utils-hooks/use-pgp-handlers';
+import { usePgpHandlers } from './use-pgp-handlers';
 import { MailsEditorV2 } from 'types/editor';
 
 type PgpButtonsProps = {

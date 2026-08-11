@@ -12,7 +12,7 @@
  * Encrypt:    RFC 3156 multipart/encrypted (signed+encrypted via HSM).
  */
 
-import { pgpCall } from '../../../../../../commons/pgp-bridge';
+import { pgpCall } from '../../../../../commons/pgp-bridge';
 import { SoapEmailMessagePartObj } from 'types/soap/save-draft';
 
 export type PgpSendParams = {

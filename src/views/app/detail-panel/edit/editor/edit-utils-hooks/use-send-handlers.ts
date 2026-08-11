@@ -11,6 +11,7 @@ import { ErrorSoapBodyResponse, t } from '@zextras/carbonio-shell-ui';
 
 import { checkSubjectAndAttachment } from '../check-subject-attachment';
 import { getErrorSnackbarProps } from './use-error-handler';
+import { preparePgpSend } from '../../pgp/prepare-pgp-send';
 import { createEditBoard } from '../../edit-view-board';
 import { EDIT_VIEW_CLOSING_REASONS, EditViewActions, TIMEOUTS } from 'constants/index';
 import {
@@ -116,6 +117,12 @@ export const useSendHandlers = (
 
 	const onSendClick = useCallback((): void => {
 		const onConfirmCallback = async (): Promise<void> => {
+			// PGP (when selected) rewrites the staged message; the regular send path
+			// below then delivers the signed/encrypted result.
+			if (!(await preparePgpSend({ editorId, createSnackbar }))) {
+				return;
+			}
+
 			sendMessage({
 				onCountdownTick: onSendCountdownTick,
 				onSendStart,
@@ -135,6 +142,7 @@ export const useSendHandlers = (
 		close,
 		closeModal,
 		createModal,
+		createSnackbar,
 		editorId,
 		onSendComplete,
 		onSendCountdownTick,
